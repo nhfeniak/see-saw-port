@@ -13,8 +13,8 @@ on:
     # scheduler, and :40 also means a typical delay still lands before 9am/3pm.
     - cron: "40 */3 * * *"
     # TEMPORARY probe — checking whether GitHub honours a schedule on this repo
-    # at all. Remove once we have the answer.
-    - cron: "13 15 * * *"
+    # at all, after forcing the workflow to re-register. Remove once answered.
+    - cron: "20 16 * * *"
   workflow_dispatch:
     inputs:
       resummarize:
