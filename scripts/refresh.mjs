@@ -27,7 +27,7 @@ FORMAT: \`Genre[, qualifier]. Specific defining detail.\`
 - Then the single most defining, specific thing about THIS show - what separates it from every other show. Prioritise subject matter when the release names it, and materials when they are unusual or when the work is sculpture.
 
 HARD RULES:
-- Maximum 9 words total. Fewer is better. No unessential words.
+- Maximum 9 words total, counting every word including the genre. Fewer is better. No unessential words. Count before you answer; if a line runs to 10 words, rewrite it shorter rather than submitting it.
 - Purely visual and physical. NOT curatorial meaning, NOT what the work "explores" or "examines". No thesis statements.
 - No generic filler. Every summary must give a specific mental picture. Never write "wide-ranging", "thought-provoking", "mixed media works", "explores identity".
 - Medium may be inferred from the artist's or gallery's known practice when the release does not state it.
@@ -40,6 +40,27 @@ GOOD EXAMPLES:
 "Video. AI-reconstructed brain imagery, outdoor sculpture-garden screens."
 "Textile. Hung wool, mud cloth, indigo shibori, military ribbon."
 "Group, mixed media. Towers as symbol: Babel, tarot, panopticon."`;
+
+const DANGLERS = /^(a|an|the|and|or|of|in|on|at|to|by|for|with|from|as|into|onto|over|under|through|across|between|its|their|his|her|this|that|these|those)$/i;
+
+// The model sometimes runs a word or two over. Slicing at exactly 9 leaves a
+// dangle ("...color orbs on unstretched"), so back off to the last complete
+// image instead: the 9th word is mid-thought by definition, and dropping it
+// can strip a preposition that is now hanging.
+function capWords(s, max = 9) {
+  const t = String(s ?? "").trim().replace(/\s+/g, " ");
+  if (!t) return "";
+  const words = t.split(" ");
+  if (words.length <= max) return t;
+
+  const kept = words.slice(0, max);
+  if (!/[.!?]$/.test(kept[kept.length - 1])) {
+    kept.pop();
+    while (kept.length && DANGLERS.test(kept[kept.length - 1].replace(/[.,:;]+$/, ""))) kept.pop();
+  }
+  const out = kept.join(" ").replace(/[,:;]+$/, "");
+  return out && !/[.!?]$/.test(out) ? out + "." : out;
+}
 
 async function getJSON(url, label) {
   const res = await fetch(url, { headers: { Accept: "application/json", "User-Agent": UA } });
@@ -103,11 +124,7 @@ ${listing}`;
   if (!Array.isArray(parsed) || parsed.length !== batch.length) {
     throw new Error(`gemini returned ${Array.isArray(parsed) ? parsed.length : "non-array"}, expected ${batch.length}`);
   }
-  // trim to the 9-word cap in case the model runs long
-  return parsed.map((s) => {
-    const words = String(s ?? "").trim().split(/\s+/).filter(Boolean);
-    return words.length <= 9 ? words.join(" ") : words.slice(0, 9).join(" ");
-  });
+  return parsed.map(capWords);
 }
 
 async function main() {
