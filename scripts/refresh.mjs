@@ -186,7 +186,8 @@ ${listing}`;
   if (!Array.isArray(parsed) || parsed.length !== batch.length) {
     throw new Error(`gemini returned ${Array.isArray(parsed) ? parsed.length : "non-array"}, expected ${batch.length}`);
   }
-  const out = parsed.map(capWords);
+  // note: not `parsed.map(capWords)` — map would pass the index as `max`
+  const out = parsed.map((s) => capWords(s));
   // Blanks are legitimate for thin releases, but a batch that comes back mostly
   // empty is the model misbehaving, not ten bio pages in a row — show the reply.
   if (out.filter((s) => !s).length > batch.length / 2) {
