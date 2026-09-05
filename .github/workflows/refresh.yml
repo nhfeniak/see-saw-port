@@ -7,6 +7,10 @@ on:
     - cron: "0 13 * * *"
     - cron: "0 19 * * *"
   workflow_dispatch:        # lets you run it by hand from the Actions tab
+    inputs:
+      resummarize:
+        description: "Re-write this many existing summaries (0 = only new shows)"
+        default: "0"
 
 permissions:
   contents: write
@@ -23,11 +27,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Fetch listings and summarize new shows
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESUMMARIZE: ${{ inputs.resummarize }}
         run: node scripts/refresh.mjs
 
       - name: Commit if anything changed

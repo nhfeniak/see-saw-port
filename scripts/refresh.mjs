@@ -127,6 +127,14 @@ async function main() {
     }
   }
 
+  // Manual "forget these and write them again" lever, for checking the key
+  // works or re-running everything after a change to SUMMARY_RULES.
+  const forget = Number(process.env.RESUMMARIZE || 0);
+  if (forget > 0) {
+    for (const id of [...evaluated.keys()].slice(0, forget)) evaluated.delete(id);
+    console.log(`re-summarizing ${forget} existing show(s) on request`);
+  }
+
   const list = await getJSON(LIST_URL, "see saw list");
   if (!Array.isArray(list.shows) || list.shows.length === 0) {
     throw new Error("see saw returned no shows — refusing to overwrite good data");

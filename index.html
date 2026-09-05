@@ -12,6 +12,8 @@
     --line: #000000;
     /* bookmarked state — same in both themes */
     --bookmark: #FFD91A;
+    /* current location — same in both themes */
+    --location: #1E5FD8;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -206,6 +208,12 @@
     cursor: pointer;
   }
 
+  /* location button — solid blue in every state, no status text beside it */
+  .map-controls button.loc {
+    background: var(--location);
+    border-color: var(--location);
+  }
+
   .mapwrap {
     max-height: 70vh;
     overflow: auto;
@@ -243,6 +251,17 @@
   /* bookmarked shows read yellow on the map too — display only, not togglable here */
   .dot.on::after {
     background: var(--bookmark);
+  }
+
+  /* current location — same footprint as a show dot, so it reads as one of them */
+  .me {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    margin: -7.5px 0 0 -7.5px;
+    border-radius: 50%;
+    background: var(--location);
+    pointer-events: none;
   }
 
   .dot-label {
@@ -29825,6 +29844,7 @@
   const NYC_TZ = "America/New_York";
   const HAMPTONS = "hamptons";
   const DEFAULT_MAP_CENTER = { lat: 40.718, lon: -74.001 }; // a little up + right of the old anchor
+  let userLoc = null; // {lat, lon} once the browser gives us a fix
 
   // vector basemap artboard: viewBox 0 0 1040 1665.9, corners given as lat/long
   const ARTBOARD_W = 1040;
@@ -30175,11 +30195,13 @@
             <a class="dot" data-id="${p.show.id}" data-x="${p.x}" data-y="${p.y}" href="${p.show.share_url}" target="_blank" rel="noopener" title="${escapeHTML(p.show.title || p.show.headline || p.show.name)}"></a>
             <div class="dot-label" data-x="${p.x}" data-y="${p.y}">${escapeHTML(p.show.name)}</div>
           `).join("")}
+          ${userLoc ? `<div class="me" data-x="${lonToSvgX(userLoc.lon)}" data-y="${latToSvgY(userLoc.lat)}"></div>` : ""}
         </div>
       </div>
       <div class="map-controls">
         <button id="zoomOut" aria-label="zoom out">&minus;</button>
         <button id="zoomIn" aria-label="zoom in">+</button>
+        <button id="locate" class="loc" aria-label="show my location"></button>
       </div>
       ${ordered.length ? `<div class="entries maplist">${ordered.map(entryHTML).join("")}</div>` : ""}
     `;
@@ -30226,6 +30248,12 @@
       label.style.top = (y + 9) + "px";
     });
     // labels always show — no crowding/collision hiding
+
+    const me = inner.querySelector(".me");
+    if (me) {
+      me.style.left = parseFloat(me.dataset.x) * mapScale + "px";
+      me.style.top = parseFloat(me.dataset.y) * mapScale + "px";
+    }
 
     if (needsCenter) {
       if (mapCenterImgX === null) {
@@ -30298,6 +30326,27 @@
     wrap.addEventListener("touchcancel", endPinch, { passive: true });
   }
 
+  // Drops a blue dot at the current position and moves the map to it. Failures
+  // (permission refused, no fix, off the artboard) are deliberately silent —
+  // no status text next to the button.
+  function locateMe() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const x = lonToSvgX(lon);
+        const y = latToSvgY(lat);
+        if (x < 0 || y < 0 || x > ARTBOARD_W || y > ARTBOARD_H) return; // outside the map
+        userLoc = { lat, lon };
+        mapCenterImgX = x;
+        mapCenterImgY = y;
+        renderContent();
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }
+
   function renderTopNav() {
     const nav = document.getElementById("topnav");
     nav.innerHTML = PAGES.map(p =>
@@ -30360,6 +30409,7 @@
       const wrap = document.getElementById("mapwrap");
       document.getElementById("zoomIn")?.addEventListener("click", () => zoomBy(1.6));
       document.getElementById("zoomOut")?.addEventListener("click", () => zoomBy(1 / 1.6));
+      document.getElementById("locate")?.addEventListener("click", locateMe);
       if (wrap) attachPinchHandlers(wrap);
     }
 
