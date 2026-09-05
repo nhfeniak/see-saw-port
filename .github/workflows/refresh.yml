@@ -1,0 +1,43 @@
+name: Refresh show data
+
+on:
+  schedule:
+    # GitHub cron is UTC. 13:00/19:00 UTC = 9am/3pm New York during EDT.
+    # After clocks go back in November these land at 8am/2pm until adjusted.
+    - cron: "0 13 * * *"
+    - cron: "0 19 * * *"
+  workflow_dispatch:        # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch listings and summarize new shows
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/refresh.mjs
+
+      - name: Commit if anything changed
+        run: |
+          git config user.name "seesaw-port-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/nyc.json
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "Refresh show data ($(date -u +%Y-%m-%d\ %H:%M) UTC)"
+            git push
+          fi
