@@ -1,9 +1,6 @@
-// Refreshes data/nyc.json from the See Saw API and writes a short visual
-// summary for any show we haven't judged before, using the Gemini free tier.
-//
-// Run:  GEMINI_API_KEY=... node scripts/refresh.mjs
-// A missing key is not fatal: the listings still refresh, new shows just
-// arrive without a summary and get one on a later run.
+// Run: GEMINI_API_KEY=... node scripts/refresh.mjs
+// A missing key is not fatal — entries just arrive without a summary line and
+// pick one up on a later run.
 
 import { readFile, writeFile } from "node:fs/promises";
 

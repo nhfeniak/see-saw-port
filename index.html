@@ -208,10 +208,14 @@
     cursor: pointer;
   }
 
-  /* location button — solid blue in every state, no status text beside it */
-  .map-controls button.loc {
+  /* location toggle — a blue dot inside a normal control box, the same dot it
+     puts on the map. No status text beside it. */
+  .map-controls button.loc::after {
+    content: "";
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
     background: var(--location);
-    border-color: var(--location);
   }
 
   .mapwrap {
@@ -29845,6 +29849,9 @@
   const HAMPTONS = "hamptons";
   const DEFAULT_MAP_CENTER = { lat: 40.718, lon: -74.001 }; // a little up + right of the old anchor
   let userLoc = null; // {lat, lon} once the browser gives us a fix
+  let locationOn = false;
+  let locationTimer = null;
+  const LOCATION_INTERVAL_MS = 20000;
 
   // vector basemap artboard: viewBox 0 0 1040 1665.9, corners given as lat/long
   const ARTBOARD_W = 1040;
@@ -30326,25 +30333,75 @@
     wrap.addEventListener("touchcancel", endPinch, { passive: true });
   }
 
-  // Drops a blue dot at the current position and moves the map to it. Failures
-  // (permission refused, no fix, off the artboard) are deliberately silent —
-  // no status text next to the button.
-  function locateMe() {
+  // Moves the blue dot without rebuilding the page — a re-render on every
+  // 20-second fix would throw away the scroll position mid-pan.
+  function positionMeDot() {
+    const inner = document.getElementById("mapinner");
+    if (!inner || !mapScale) return;
+    let me = inner.querySelector(".me");
+    const x = userLoc ? lonToSvgX(userLoc.lon) : 0;
+    const y = userLoc ? latToSvgY(userLoc.lat) : 0;
+    const onMap = userLoc && x >= 0 && y >= 0 && x <= ARTBOARD_W && y <= ARTBOARD_H;
+    if (!onMap) {
+      me?.remove();
+      return;
+    }
+    if (!me) {
+      me = document.createElement("div");
+      me.className = "me";
+      inner.appendChild(me);
+    }
+    me.dataset.x = x;
+    me.dataset.y = y;
+    me.style.left = x * mapScale + "px";
+    me.style.top = y * mapScale + "px";
+  }
+
+  // Failures (permission refused, no fix, off the artboard) are deliberately
+  // silent — no status text next to the button.
+  function requestFix(recenter) {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        const x = lonToSvgX(lon);
-        const y = latToSvgY(lat);
-        if (x < 0 || y < 0 || x > ARTBOARD_W || y > ARTBOARD_H) return; // outside the map
-        userLoc = { lat, lon };
+        if (!locationOn) return; // toggled off while the fix was in flight
+        userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        positionMeDot();
+        // only the initial press moves the map; later fixes must not yank the
+        // view out from under someone reading a different part of the city
+        if (!recenter) return;
+        const x = lonToSvgX(userLoc.lon);
+        const y = latToSvgY(userLoc.lat);
+        if (x < 0 || y < 0 || x > ARTBOARD_W || y > ARTBOARD_H) return;
         mapCenterImgX = x;
         mapCenterImgY = y;
-        renderContent();
+        const wrap = document.getElementById("mapwrap");
+        if (wrap) centerOn(wrap, x, y, mapScale);
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
     );
+  }
+
+  function startLocationTimer() {
+    stopLocationTimer();
+    locationTimer = setInterval(() => requestFix(false), LOCATION_INTERVAL_MS);
+  }
+
+  function stopLocationTimer() {
+    if (locationTimer) clearInterval(locationTimer);
+    locationTimer = null;
+  }
+
+  function toggleLocation() {
+    locationOn = !locationOn;
+    if (locationOn) {
+      requestFix(true);
+      startLocationTimer();
+    } else {
+      stopLocationTimer();
+      userLoc = null;
+      positionMeDot();
+    }
   }
 
   function renderTopNav() {
@@ -30367,6 +30424,8 @@
 
   function renderContent() {
     const content = document.getElementById("content");
+    // don't keep polling GPS on the list pages; the map branch restarts it
+    stopLocationTimer();
 
     if (currentPage === "opening") {
       content.innerHTML = renderOpeningPage();
@@ -30409,7 +30468,8 @@
       const wrap = document.getElementById("mapwrap");
       document.getElementById("zoomIn")?.addEventListener("click", () => zoomBy(1.6));
       document.getElementById("zoomOut")?.addEventListener("click", () => zoomBy(1 / 1.6));
-      document.getElementById("locate")?.addEventListener("click", locateMe);
+      document.getElementById("locate")?.addEventListener("click", toggleLocation);
+      if (locationOn) startLocationTimer();
       if (wrap) attachPinchHandlers(wrap);
     }
 
