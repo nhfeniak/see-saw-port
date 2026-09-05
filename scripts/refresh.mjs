@@ -82,13 +82,22 @@ async function listModels() {
     .map((m) => m.name.replace(/^models\//, ""));
   console.log(`models offered: ${usable.join(", ") || "(none)"}`);
 
-  const flash = usable.filter((m) => /flash/i.test(m) && !/thinking|image|audio|live|tts/i.test(m));
-  // full Flash before Flash-Lite: lite returned empty strings for releases it
-  // had summarized well a run earlier, and daily volume is a handful of shows,
-  // nowhere near the free quota, so nothing is saved by going smaller.
+  const flash = usable.filter(
+    (m) => /flash/i.test(m) && !/thinking|image|audio|live|tts|omni|transcribe|robotics/i.test(m)
+  );
+  // Newest first: the listing is in no useful order, and betting on whatever
+  // happens to be at the top landed us on gemini-2.5-flash. Full Flash before
+  // Flash-Lite, since lite returned empty strings for releases it had
+  // summarized well a run earlier, and daily volume is nowhere near the quota.
+  const version = (m) => {
+    const v = m.match(/gemini-(\d+(?:\.\d+)?)-flash/);
+    return v ? parseFloat(v[1]) : 0;
+  };
+  const rank = (m) =>
+    (/lite/i.test(m) ? 1000 : 0) + (/preview/i.test(m) ? 100 : 0) - version(m);
   const ordered = [
-    ...flash.filter((m) => !/lite/i.test(m)),
-    ...flash.filter((m) => /lite/i.test(m)),
+    ...flash.sort((a, b) => rank(a) - rank(b)),
+    "gemini-flash-latest",
     ...usable,
   ];
   const seen = new Set();
@@ -123,24 +132,35 @@ ${listing}`;
   let res = null, used = null;
   const rejected = [];
   for (const a of attempts) {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/${a.version}/models/${a.model}:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-        }),
+    // 404/400 mean this name is simply wrong here — move on. 429/5xx are the
+    // free tier being busy, which is worth waiting out before giving up on an
+    // otherwise good model.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/${a.version}/models/${a.model}:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+          }),
+        }
+      );
+      if (r.status === 404 || r.status === 400) {
+        rejected.push(`${a.model}@${a.version}:${r.status}`);
+        break;
       }
-    );
-    if (r.status === 404 || r.status === 400) {
-      rejected.push(`${a.model}@${a.version}:${r.status}`);
-      continue;
+      if (r.status === 429 || r.status >= 500) {
+        rejected.push(`${a.model}@${a.version}:${r.status}`);
+        if (attempt < 2) await sleep(3000 * (attempt + 1));
+        continue;
+      }
+      res = r;
+      used = a;
+      break;
     }
-    res = r;
-    used = a;
-    break;
+    if (res) break;
   }
   if (!res) throw new Error(`no model accepted the request — ${rejected.join(", ")}`);
   if (!res.ok) throw new Error(`gemini: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
