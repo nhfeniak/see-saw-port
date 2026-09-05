@@ -11,6 +11,9 @@ on:
     # refresh before 9am/3pm rather than after.
     - cron: "40 12 * * *"
     - cron: "40 18 * * *"
+    # TEMPORARY probe — checking whether GitHub honours a schedule on this repo
+    # at all. Remove once we have the answer.
+    - cron: "13 15 * * *"
   workflow_dispatch:
     inputs:
       resummarize:
