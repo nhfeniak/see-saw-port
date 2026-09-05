@@ -29867,7 +29867,6 @@
   let mapListIds = [];   // bookmarked shows listed under the current map
   let mapListKey = null; // which map view that list was built for
   let currentPage = "opening";
-  let onViewNeighborhood = null; // null = All
   let openingMapDate = null; // NYC date-key ("YYYY-MM-DD") of the selected day subtab
 
   // shared "camera" state for every map view (Openings Map + On View Map share
@@ -30095,33 +30094,17 @@
     if (!latestShows) return `<div class="empty">no data yet</div>`;
     const { onView } = computeLists(latestShows.shows);
 
-    const neighborhoods = [...new Set(onView.map(s => s.neighborhood).filter(Boolean))]
-      .sort((a, b) => neighborhoodRank(a) - neighborhoodRank(b) || a.localeCompare(b));
-    let html = `<div class="tabs">
-      <a data-nbhd="" class="${onViewNeighborhood === null ? "active" : ""}">All</a>
-      ${neighborhoods.map(n => `<a data-nbhd="${escapeHTML(n)}" class="${onViewNeighborhood === n ? "active" : ""}">${escapeHTML(capWords(n))}</a>`).join("")}
-    </div>`;
+    // no sub-tabs here — one list, every neighborhood but the Hamptons, which
+    // stay reachable on the On View map
+    const pool = onView.filter(s => !isHamptons(s));
+    if (!pool.length) return `<div class="empty">nothing here</div>`;
 
-    let pool;
-    if (onViewNeighborhood === null) {
-      pool = onView.filter(s => !isHamptons(s));
-    } else {
-      pool = onView.filter(s => (s.neighborhood || "") === onViewNeighborhood);
-    }
-
-    if (!pool.length) return html + `<div class="empty">nothing here</div>`;
-
-    if (onViewNeighborhood === null) {
-      const groups = groupByKey(pool, s => s.neighborhood || "",
-        (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
-      html += groups.map(([nbhd, items]) => `
-        <div class="date-head">${capWords(nbhd) || "Unknown"}</div>
-        <div class="entries">${sortByLatitude(items, nbhd).map(entryHTML).join("")}</div>
-      `).join("");
-    } else {
-      html += `<div class="entries">${sortByLatitude(pool, onViewNeighborhood).map(entryHTML).join("")}</div>`;
-    }
-    return html;
+    const groups = groupByKey(pool, s => s.neighborhood || "",
+      (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
+    return groups.map(([nbhd, items]) => `
+      <div class="date-head">${capWords(nbhd) || "Unknown"}</div>
+      <div class="entries">${sortByLatitude(items, nbhd).map(entryHTML).join("")}</div>
+    `).join("");
   }
 
   // the basemap is a hand-cropped vector artboard; corners were given as
@@ -30440,13 +30423,6 @@
       });
     } else if (currentPage === "onview") {
       content.innerHTML = renderOnViewPage();
-      content.querySelectorAll(".tabs a").forEach(a => {
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          onViewNeighborhood = a.dataset.nbhd || null;
-          renderContent();
-        });
-      });
     } else if (currentPage === "opening-map" || currentPage === "onview-map") {
       const kind = currentPage === "opening-map" ? "opening" : "onview";
       content.innerHTML = renderMapPage(kind);
