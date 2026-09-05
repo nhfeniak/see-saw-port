@@ -193,6 +193,19 @@ ${listing}`;
   return out;
 }
 
+// fetched_at is "last checked", not "last changed" — it is the only signal on
+// the page that the refresh is still alive, so every successful run restamps it
+async function writeDoc(listEtag, shows) {
+  const doc = {
+    fetched_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+    list_etag: listEtag,
+    shows,
+  };
+  const json = JSON.stringify(doc);
+  await writeFile(DATA_PATH, json);
+  return Math.round(json.length / 1024);
+}
+
 async function main() {
   let previous = { shows: [] };
   try {
@@ -219,7 +232,34 @@ async function main() {
     console.log(`re-summarizing ${forget} existing show(s) on request`);
   }
 
-  const list = await getJSON(LIST_URL, "see saw list");
+  // Conditional request: hand back the ETag from last time and the server
+  // answers 304 with an empty body when nothing has changed, instead of
+  // re-sending the whole city. Most runs land here.
+  const headers = { Accept: "application/json", "User-Agent": UA };
+  const priorEtag = previous.list_etag;
+  // Skip the shortcut when work is outstanding: a show left without a summary
+  // key by a failed Gemini call needs the full list to be retried, and a 304
+  // would strand it until the listings happened to change.
+  const hasPending = (previous.shows || []).some(
+    (s) => !Object.prototype.hasOwnProperty.call(s, "summary")
+  );
+  const canRevalidate =
+    priorEtag && (previous.shows || []).length > 0 && forget === 0 && !hasPending;
+  if (canRevalidate) headers["If-None-Match"] = priorEtag;
+
+  const listRes = await fetch(LIST_URL, { headers });
+
+  if (listRes.status === 304) {
+    console.log("list unchanged (304, no body transferred)");
+    // still restamp, so the page's "Updated" line means "last checked" and
+    // stays a live signal that this is running
+    await writeDoc(priorEtag, previous.shows);
+    return;
+  }
+  if (!listRes.ok) throw new Error(`see saw list: HTTP ${listRes.status}`);
+
+  const listEtag = listRes.headers.get("etag") || null;
+  const list = await listRes.json();
   if (!Array.isArray(list.shows) || list.shows.length === 0) {
     throw new Error("see saw returned no shows — refusing to overwrite good data");
   }
@@ -293,9 +333,7 @@ async function main() {
     return out;
   });
 
-  const doc = { fetched_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"), shows };
-  await writeFile(DATA_PATH, JSON.stringify(doc));
-  const kb = Math.round(JSON.stringify(doc).length / 1024);
+  const kb = await writeDoc(listEtag, shows);
   console.log(`wrote ${shows.length} shows (${kb} KB) — ${reused} reused, ${written} new, ${blank} blank, ${pending} pending`);
 }
 
