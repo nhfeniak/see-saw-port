@@ -143,7 +143,13 @@ ${listing}`;
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+            generationConfig: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            // Without a schema the 3.x models drift badly here — returning bare
+            // fragments like "Mixed." for a release with plenty to describe.
+            responseSchema: { type: "ARRAY", items: { type: "STRING" } },
+          },
           }),
         }
       );
@@ -180,7 +186,13 @@ ${listing}`;
   if (!Array.isArray(parsed) || parsed.length !== batch.length) {
     throw new Error(`gemini returned ${Array.isArray(parsed) ? parsed.length : "non-array"}, expected ${batch.length}`);
   }
-  return parsed.map(capWords);
+  const out = parsed.map(capWords);
+  // Blanks are legitimate for thin releases, but a batch that comes back mostly
+  // empty is the model misbehaving, not ten bio pages in a row — show the reply.
+  if (out.filter((s) => !s).length > batch.length / 2) {
+    console.log(`  suspicious reply: ${text.slice(0, 400)}`);
+  }
+  return out;
 }
 
 async function main() {
