@@ -69,26 +69,35 @@ async function getJSON(url, label) {
 }
 
 // Ask Google which models this key can actually use, rather than hardcoding a
-// name that may have been renamed or moved off the free tier.
-async function pickModel() {
+// name that may have been renamed or moved off the free tier. The listing is
+// not fully trustworthy on its own — it advertises names that generateContent
+// then 404s — so this returns an ordered list of candidates to try in turn.
+async function listModels() {
   const data = await getJSON(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}&pageSize=200`,
     "gemini models"
   );
-  const usable = (data.models || []).filter(
-    (m) => (m.supportedGenerationMethods || []).includes("generateContent")
-  );
-  const flash = usable.filter((m) => /flash/i.test(m.name) && !/thinking|image|audio|live/i.test(m.name));
-  // full Flash over Flash-Lite: lite returned empty strings for releases it had
-  // summarized fine a run earlier, and the daily volume is a handful of shows,
-  // nowhere near the free quota, so there is nothing to save by going smaller.
-  const full = flash.filter((m) => !/lite/i.test(m.name));
-  const chosen = full[0] || flash[0] || usable[0];
-  if (!chosen) throw new Error("no Gemini model available for this key");
-  return chosen.name.replace(/^models\//, "");
+  const usable = (data.models || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map((m) => m.name.replace(/^models\//, ""));
+  console.log(`models offered: ${usable.join(", ") || "(none)"}`);
+
+  const flash = usable.filter((m) => /flash/i.test(m) && !/thinking|image|audio|live|tts/i.test(m));
+  // full Flash before Flash-Lite: lite returned empty strings for releases it
+  // had summarized well a run earlier, and daily volume is a handful of shows,
+  // nowhere near the free quota, so nothing is saved by going smaller.
+  const ordered = [
+    ...flash.filter((m) => !/lite/i.test(m)),
+    ...flash.filter((m) => /lite/i.test(m)),
+    ...usable,
+  ];
+  const seen = new Set();
+  return ordered.filter((m) => !seen.has(m) && seen.add(m));
 }
 
-async function summarizeBatch(model, batch) {
+let activeModel = null; // {model, version} — settled on the first call that works
+
+async function summarizeBatch(models, batch) {
   const listing = batch
     .map((s, i) => {
       const pr = (s.press_release || "").replace(/\s+/g, " ").slice(0, 2500);
@@ -103,18 +112,42 @@ Reply with ONLY a JSON array of ${batch.length} strings, in the same order. No o
 
 ${listing}`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-      }),
+  // A listed model can still 404 on generateContent, and some names only exist
+  // under one API version — so work down the candidates until one answers, then
+  // stay on it for the rest of the run.
+  const attempts = activeModel ? [activeModel] : models.flatMap((m) => [
+    { model: m, version: "v1beta" },
+    { model: m, version: "v1" },
+  ]);
+
+  let res = null, used = null;
+  const rejected = [];
+  for (const a of attempts) {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/${a.version}/models/${a.model}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+        }),
+      }
+    );
+    if (r.status === 404 || r.status === 400) {
+      rejected.push(`${a.model}@${a.version}:${r.status}`);
+      continue;
     }
-  );
+    res = r;
+    used = a;
+    break;
+  }
+  if (!res) throw new Error(`no model accepted the request — ${rejected.join(", ")}`);
   if (!res.ok) throw new Error(`gemini: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+  if (!activeModel) {
+    activeModel = used;
+    console.log(`using ${used.model} (${used.version})`);
+  }
 
   const body = await res.json();
   const text = body?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
@@ -184,19 +217,19 @@ async function main() {
       if (!s.press_release.trim()) fresh.set(String(s.id), ""); // nothing to read
     }
 
-    let model;
+    let models = [];
     try {
-      model = await pickModel();
-      console.log(`using ${model} for ${withText.length} summaries`);
+      models = await listModels();
+      console.log(`${models.length} candidate model(s) for ${withText.length} summaries`);
     } catch (e) {
-      console.log(`could not select a Gemini model: ${e.message}`);
+      console.log(`could not list Gemini models: ${e.message}`);
     }
 
-    if (model) {
+    if (models.length) {
       for (let i = 0; i < withText.length; i += BATCH_SIZE) {
         const batch = withText.slice(i, i + BATCH_SIZE);
         try {
-          const out = await summarizeBatch(model, batch);
+          const out = await summarizeBatch(models, batch);
           batch.forEach((s, j) => fresh.set(String(s.id), out[j]));
           console.log(`  batch ${i / BATCH_SIZE + 1}: ${out.length} summaries`);
         } catch (e) {
