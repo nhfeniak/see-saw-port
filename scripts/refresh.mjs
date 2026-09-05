@@ -27,7 +27,7 @@ FORMAT: \`Genre[, qualifier]. Specific defining detail.\`
 - Then the single most defining, specific thing about THIS show - what separates it from every other show. Prioritise subject matter when the release names it, and materials when they are unusual or when the work is sculpture.
 
 HARD RULES:
-- Maximum 9 words total, counting every word including the genre. Fewer is better. No unessential words. Count before you answer; if a line runs to 10 words, rewrite it shorter rather than submitting it.
+- Maximum 9 words total. Fewer is better. No unessential words.
 - Purely visual and physical. NOT curatorial meaning, NOT what the work "explores" or "examines". No thesis statements.
 - No generic filler. Every summary must give a specific mental picture. Never write "wide-ranging", "thought-provoking", "mixed media works", "explores identity".
 - Medium may be inferred from the artist's or gallery's known practice when the release does not state it.
@@ -79,8 +79,11 @@ async function pickModel() {
     (m) => (m.supportedGenerationMethods || []).includes("generateContent")
   );
   const flash = usable.filter((m) => /flash/i.test(m.name) && !/thinking|image|audio|live/i.test(m.name));
-  const preferLite = flash.filter((m) => /lite/i.test(m.name));
-  const chosen = preferLite[0] || flash[0] || usable[0];
+  // full Flash over Flash-Lite: lite returned empty strings for releases it had
+  // summarized fine a run earlier, and the daily volume is a handful of shows,
+  // nowhere near the free quota, so there is nothing to save by going smaller.
+  const full = flash.filter((m) => !/lite/i.test(m.name));
+  const chosen = full[0] || flash[0] || usable[0];
   if (!chosen) throw new Error("no Gemini model available for this key");
   return chosen.name.replace(/^models\//, "");
 }
@@ -146,6 +149,7 @@ async function main() {
 
   // Manual "forget these and write them again" lever, for checking the key
   // works or re-running everything after a change to SUMMARY_RULES.
+  const previousSummaries = new Map(evaluated);
   const forget = Number(process.env.RESUMMARIZE || 0);
   if (forget > 0) {
     for (const id of [...evaluated.keys()].slice(0, forget)) evaluated.delete(id);
@@ -216,8 +220,10 @@ async function main() {
       out.summary = evaluated.get(id);
       reused++;
     } else if (fresh.has(id)) {
-      out.summary = fresh.get(id);
-      fresh.get(id) ? written++ : blank++;
+      // a forced resummarize should only ever improve a line, never blank one out
+      const v = fresh.get(id) || previousSummaries.get(id) || "";
+      out.summary = v;
+      v ? written++ : blank++;
     } else {
       pending++; // no summary key at all — retried next run
     }
