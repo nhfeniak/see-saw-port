@@ -19,12 +19,6 @@ Summaries are only generated for genuinely new shows. A show with an empty
 saying — that is different from a missing `summary` key, which means it still
 needs looking at.
 
-## Setup
-
-Repository secret `GEMINI_API_KEY` — a free key from
-https://aistudio.google.com/apikey. Without it the listings still refresh;
-new shows just appear without their third line until a run has the key.
-
 ## Bookmarks
 
 Stored in the browser's `localStorage`, per device. Nothing is sent anywhere.
