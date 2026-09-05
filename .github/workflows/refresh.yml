@@ -2,10 +2,15 @@ name: update
 
 on:
   schedule:
-    # UTC. 13:00/19:00 = 9am/3pm New York during EDT; both shift an hour
+    # UTC. 12:40/18:40 = 8:40am/2:40pm New York during EDT; both shift an hour
     # earlier when clocks go back in November.
-    - cron: "0 13 * * *"
-    - cron: "0 19 * * *"
+    #
+    # Deliberately not on the hour: GitHub queues every :00 cron in the world at
+    # once and drops what it cannot service, which is why the 13:00 run never
+    # fired. Twenty minutes early also means a typical delay still lands the
+    # refresh before 9am/3pm rather than after.
+    - cron: "40 12 * * *"
+    - cron: "40 18 * * *"
   workflow_dispatch:
     inputs:
       resummarize:
