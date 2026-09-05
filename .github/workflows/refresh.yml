@@ -2,15 +2,16 @@ name: update
 
 on:
   schedule:
-    # UTC. 12:40/18:40 = 8:40am/2:40pm New York during EDT; both shift an hour
-    # earlier when clocks go back in November.
+    # Every three hours at :40 — 12:40 and 18:40 UTC land at 8:40am and 2:40pm
+    # New York during EDT, the two times that actually matter, and the rest are
+    # insurance. GitHub drops scheduled runs under load (a 13:00 cron here never
+    # fired once), so the fix is to stop depending on any single one; a missed
+    # run is invisible when the next is three hours out. Extra runs are close to
+    # free: summaries are only generated for shows we have never seen.
     #
-    # Deliberately not on the hour: GitHub queues every :00 cron in the world at
-    # once and drops what it cannot service, which is why the 13:00 run never
-    # fired. Twenty minutes early also means a typical delay still lands the
-    # refresh before 9am/3pm rather than after.
-    - cron: "40 12 * * *"
-    - cron: "40 18 * * *"
+    # Not on the hour, deliberately — that is the most contended slot on the
+    # scheduler, and :40 also means a typical delay still lands before 9am/3pm.
+    - cron: "40 */3 * * *"
     # TEMPORARY probe — checking whether GitHub honours a schedule on this repo
     # at all. Remove once we have the answer.
     - cron: "13 15 * * *"
