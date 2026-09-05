@@ -11,10 +11,13 @@ on:
     #
     # Not on the hour, deliberately — that is the most contended slot on the
     # scheduler, and :40 also means a typical delay still lands before 9am/3pm.
+    #
+    # Kept, but do not rely on it: as of 2026-09-05 GitHub has never fired a
+    # single scheduled run on this repo — four consecutive misses, including one
+    # after a disable/enable re-registration, while every manual run succeeded.
+    # Likely broken by the repo rename. Refreshing is manual (the "Refresh" link
+    # on the page); this stays armed in case the scheduler ever starts working.
     - cron: "40 */3 * * *"
-    # TEMPORARY probe — checking whether GitHub honours a schedule on this repo
-    # at all, after forcing the workflow to re-register. Remove once answered.
-    - cron: "20 16 * * *"
   workflow_dispatch:
     inputs:
       resummarize:

@@ -29821,9 +29821,21 @@
     }
   }
 
+  // GitHub's scheduler will not fire for this repo, so the refresh is manual:
+  // the link opens the workflow's own page, where "Run workflow" starts it.
+  // Data appears here a couple of minutes later, once Pages rebuilds.
+  const REFRESH_URL = "https://github.com/nhfeniak/see-saw-port/actions/workflows/refresh.yml";
+
   function renderUpdatedLine() {
     const el = document.getElementById("updated");
-    if (el) el.textContent = fmtUpdated(latestShows ? latestShows.fetched_at : null);
+    if (!el) return;
+    el.textContent = fmtUpdated(latestShows ? latestShows.fetched_at : null) + " ";
+    const a = document.createElement("a");
+    a.href = REFRESH_URL;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "Refresh";
+    el.appendChild(a);
   }
 
   function dateOnly(iso) {
