@@ -29977,12 +29977,12 @@
   }
 
   // Manhattan reads south to north; Brooklyn and the Hamptons read north to south
-  const NORTH_TO_SOUTH = new Set(["brooklyn", "hamptons"]);
+  // Every list runs north to south. Manhattan used to run the other way, which
+  // meant Brooklyn and the Hamptons needed an exception; with one direction
+  // throughout, the exception is gone.
 
-  function sortByLatitude(items, neighborhood) {
-    const desc = NORTH_TO_SOUTH.has((neighborhood || "").toLowerCase());
-    return items.slice().sort((a, b) =>
-      desc ? (b.latitude - a.latitude) : (a.latitude - b.latitude));
+  function sortByLatitude(items) {
+    return items.slice().sort((a, b) => b.latitude - a.latitude);
   }
 
   function renderGroupedByDate(groups) {
@@ -30016,7 +30016,7 @@
       const aBk = (a.neighborhood || "").toLowerCase() === "brooklyn";
       const bBk = (b.neighborhood || "").toLowerCase() === "brooklyn";
       if (aBk !== bBk) return aBk ? 1 : -1;
-      return aBk ? (b.latitude - a.latitude) : (a.latitude - b.latitude);
+      return b.latitude - a.latitude;
     });
   }
 
@@ -30053,14 +30053,14 @@
 
     // a single neighborhood needs no headings; "All" keeps them as dividers
     if (onViewNeighborhood !== null) {
-      return tabs + `<div class="entries">${sortByLatitude(pool, onViewNeighborhood).map(entryHTML).join("")}</div>`;
+      return tabs + `<div class="entries">${sortByLatitude(pool).map(entryHTML).join("")}</div>`;
     }
 
     const groups = groupByKey(pool, s => s.neighborhood || "",
       (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
     return tabs + groups.map(([nbhd, items]) => `
       <div class="date-head">${capWords(nbhd) || "Unknown"}</div>
-      <div class="entries">${sortByLatitude(items, nbhd).map(entryHTML).join("")}</div>
+      <div class="entries">${sortByLatitude(items).map(entryHTML).join("")}</div>
     `).join("");
   }
 
@@ -30137,9 +30137,7 @@
     if (mapKind === "opening") return geoSort(shows);
     return shows.slice().sort((a, b) =>
       neighborhoodRank(a.neighborhood) - neighborhoodRank(b.neighborhood) ||
-      (NORTH_TO_SOUTH.has((a.neighborhood || "").toLowerCase())
-        ? b.latitude - a.latitude
-        : a.latitude - b.latitude));
+      b.latitude - a.latitude);
   }
 
   // Everything on screen, listed underneath: pinned rows first, then whatever
