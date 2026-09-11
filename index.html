@@ -104,6 +104,12 @@
 
   .date-head:first-of-type { margin-top: 4px; }
 
+  /* :first-of-type counts div siblings, and on On View the sub-tabs are the
+     first div — so the rule above never reached the first heading there and it
+     kept the full 38px. Matching the tab row directly closes the gap to the
+     same 14px the headingless neighborhood tabs have. */
+  .tabs + .date-head { margin-top: 0; }
+
   .date-head .daymap-link {
     font-size: 14px;
     font-weight: normal;
