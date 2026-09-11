@@ -30175,7 +30175,11 @@
     if (!wrap || !inner || !svg) return;
 
     const fitScale = Math.min(1, wrap.clientWidth / ARTBOARD_W);
-    const maxScale = 41; // vector art — no pixelation ceiling; +2 zoom steps (1.6x each) from before
+    // Three more 1.6x steps than the map alone needs. Past roughly 40 the
+    // basemap stops being informative, but the list under it is filtered by
+    // what is on screen, so tighter zoom is how you pare a dense block down to
+    // a handful of rows.
+    const maxScale = 168;
 
     let needsCenter = false;
     if (mapScale === null) {
