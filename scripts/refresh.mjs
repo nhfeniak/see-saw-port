@@ -42,11 +42,12 @@ GOOD EXAMPLES:
 
 const DANGLERS = /^(a|an|the|and|or|of|in|on|at|to|by|for|with|from|as|into|onto|over|under|through|across|between|its|their|his|her|this|that|these|those)$/i;
 
+// Not to be confused with the page's capWords, which capitalises.
 // The model sometimes runs a word or two over. Slicing at exactly 9 leaves a
 // dangle ("...color orbs on unstretched"), so back off to the last complete
 // image instead: the 9th word is mid-thought by definition, and dropping it
 // can strip a preposition that is now hanging.
-function capWords(s, max = 9) {
+function capToWordLimit(s, max = 9) {
   const t = String(s ?? "").trim().replace(/\s+/g, " ");
   if (!t) return "";
   const words = t.split(" ");
@@ -185,8 +186,8 @@ ${listing}`;
   if (!Array.isArray(parsed) || parsed.length !== batch.length) {
     throw new Error(`gemini returned ${Array.isArray(parsed) ? parsed.length : "non-array"}, expected ${batch.length}`);
   }
-  // note: not `parsed.map(capWords)` — map would pass the index as `max`
-  const out = parsed.map((s) => capWords(s));
+  // note: not `parsed.map(capToWordLimit)` — map would pass the index as `max`
+  const out = parsed.map((s) => capToWordLimit(s));
   // Blanks are legitimate for thin releases, but a batch that comes back mostly
   // empty is the model misbehaving, not ten bio pages in a row — show the reply.
   if (out.filter((s) => !s).length > batch.length / 2) {

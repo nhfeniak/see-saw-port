@@ -2,21 +2,16 @@ name: update
 
 on:
   schedule:
-    # Every three hours at :40 — 12:40 and 18:40 UTC land at 8:40am and 2:40pm
-    # New York during EDT, the two times that actually matter, and the rest are
-    # insurance. GitHub drops scheduled runs under load (a 13:00 cron here never
-    # fired once), so the fix is to stop depending on any single one; a missed
-    # run is invisible when the next is three hours out. Extra runs are close to
-    # free: summaries are only generated for shows we have never seen.
+    # DOES NOT WORK — kept armed in case it ever starts.
     #
-    # Not on the hour, deliberately — that is the most contended slot on the
-    # scheduler, and :40 also means a typical delay still lands before 9am/3pm.
+    # As of 2026-09-05 GitHub has never fired a single scheduled run on this
+    # repo: four consecutive misses, including one after a disable/enable
+    # re-registration, while every manual run succeeded. Most likely broken by
+    # the repo rename. Refreshing is manual, via the "Refresh" link on the page.
     #
-    # Kept, but do not rely on it: as of 2026-09-05 GitHub has never fired a
-    # single scheduled run on this repo — four consecutive misses, including one
-    # after a disable/enable re-registration, while every manual run succeeded.
-    # Likely broken by the repo rename. Refreshing is manual (the "Refresh" link
-    # on the page); this stays armed in case the scheduler ever starts working.
+    # If it does start working, :40 past every third hour puts two runs at
+    # 8:40am and 2:40pm New York (EDT), and off-the-hour avoids the most
+    # contended scheduler slot.
     - cron: "40 */3 * * *"
   workflow_dispatch:
     inputs:

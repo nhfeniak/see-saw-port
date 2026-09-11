@@ -29747,7 +29747,7 @@
 <script>
   const NYC_TZ = "America/New_York";
   const HAMPTONS = "hamptons";
-  const DEFAULT_MAP_CENTER = { lat: 40.718, lon: -74.001 }; // a little up + right of the old anchor
+  const DEFAULT_MAP_CENTER = { lat: 40.718, lon: -74.001 }; // lower Manhattan
 
   // The traced basemap sits about 20 m south-east of where the coordinates put
   // it, so dots drifted off their buildings. Calibrated from two neighbours on
@@ -29775,11 +29775,10 @@
 
   let latestShows = null;
   let bookmarks = new Set();
-  let bookmarksLoaded = false;
+  let onViewNeighborhood = null; // null = All
   // Rows pinned to the top of the map list. A show joins when bookmarked and
   // never leaves until the page is reloaded, so un-bookmarking by mistake does
-  // not make the row vanish before it can be tapped again.
-  let onViewNeighborhood = null; // null = All
+  // not reorder the row out from under the tap.
   let stickyTop = new Set();
   let mapPoints = [];    // what is plotted in the current map view
   let mapKind = null;    // "opening" | "onview"
@@ -29809,8 +29808,8 @@
     }).format(d);
   }
 
-  // Bookmarks live in the artifact's database rather than browser storage, so
-  // a show starred on the laptop is already blue on the phone.
+  // Bookmarks are per-device: localStorage only, never sent anywhere. A show
+  // starred on the laptop is NOT starred on the phone.
   function applyBookmarkStyles() {
     document.querySelectorAll(".bm[data-id]").forEach(b => {
       const on = bookmarks.has(b.dataset.id);
@@ -29832,7 +29831,6 @@
       bookmarks = new Set(); // private window, blocked storage, corrupt value
     }
     stickyTop = new Set(bookmarks);
-    bookmarksLoaded = true;
   }
 
   function toggleBookmark(id) {
@@ -29956,7 +29954,7 @@
     return `
       <div class="entry">
         <div class="entry-main">
-          <a class="title" href="${show.share_url}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
+          <a class="title" href="${escapeHTML(show.share_url || "")}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
           <div class="sub">${galleryLine}</div>
           ${show.summary ? `<div class="sub summary">${escapeHTML(show.summary)}</div>` : ""}
         </div>
@@ -29974,7 +29972,7 @@
     return [...map.entries()].sort(sortFn || ((a, b) => a[0].localeCompare(b[0])));
   }
 
-  // fixed geographic order, roughly south to north then out of Manhattan
+  // fixed display order, Manhattan first then out of it
   const NEIGHBORHOOD_ORDER = ["downtown", "chelsea", "uptown", "brooklyn", "hamptons"];
 
   function neighborhoodRank(n) {
@@ -29982,7 +29980,6 @@
     return i === -1 ? NEIGHBORHOOD_ORDER.length : i;
   }
 
-  // Manhattan reads south to north; Brooklyn and the Hamptons read north to south
   // Every list runs north to south. Manhattan used to run the other way, which
   // meant Brooklyn and the Hamptons needed an exception; with one direction
   // throughout, the exception is gone.
@@ -30014,21 +30011,20 @@
     const today = todayNYC();
 
     const cutoffKey = openingsCutoffKey();
-    const openingSoonAll = shows
-      .filter(s => s.opening_start_time)
+    const openingSoon = shows
+      .filter(s => s.opening_start_time && !isHamptons(s))
       .filter(s => nycDateKey(s.opening_start_time) >= cutoffKey)
       .sort((a, b) => a.opening_start_time.localeCompare(b.opening_start_time));
-    const openingSoon = openingSoonAll.filter(s => !isHamptons(s));
 
     const onView = shows
       .filter(s => s.starts && s.ends && s.starts <= s.ends)
       .filter(s => dateOnly(s.starts) <= today && dateOnly(s.ends) >= today)
       .sort((a, b) => a.ends.localeCompare(b.ends));
 
-    return { openingSoon, onView, today };
+    return { openingSoon, onView };
   }
 
-  // Manhattan (uptown/chelsea/downtown) south-to-north, then Brooklyn north-to-south
+  // north to south, with Brooklyn kept together at the end
   function geoSort(items) {
     return items.slice().sort((a, b) => {
       const aBk = (a.neighborhood || "").toLowerCase() === "brooklyn";
@@ -30136,7 +30132,7 @@
       <div class="mapwrap" id="mapwrap">
         <div class="mapinner" id="mapinner">
           ${points.map(p => `
-            <a class="dot" data-id="${p.show.id}" data-x="${p.x}" data-y="${p.y}" href="${p.show.share_url}" target="_blank" rel="noopener" title="${escapeHTML(p.show.title || p.show.headline || p.show.name)}"></a>
+            <a class="dot" data-id="${p.show.id}" data-x="${p.x}" data-y="${p.y}" href="${escapeHTML(p.show.share_url || "")}" target="_blank" rel="noopener" title="${escapeHTML(p.show.title || p.show.headline || p.show.name)}"></a>
             <div class="dot-label" data-x="${p.x}" data-y="${p.y}">${escapeHTML(p.show.name)}</div>
           `).join("")}
           ${userLoc ? `<div class="me" data-x="${lonToSvgX(userLoc.lon)}" data-y="${latToSvgY(userLoc.lat)}"></div>` : ""}
@@ -30223,18 +30219,20 @@
     svg.style.width = w + "px";
     svg.style.height = h + "px";
 
-    const dots = [...inner.querySelectorAll(".dot")];
-    const labels = [...inner.querySelectorAll(".dot-label")];
-
-    dots.forEach((dot, i) => {
+    // Each label is emitted directly after its dot, so walk the sibling rather
+    // than pairing two queries by index — an index pair breaks silently the
+    // moment anything else is added between them.
+    for (const dot of inner.querySelectorAll(".dot")) {
       const x = parseFloat(dot.dataset.x) * mapScale;
       const y = parseFloat(dot.dataset.y) * mapScale;
       dot.style.left = x + "px";
       dot.style.top = y + "px";
-      const label = labels[i];
-      label.style.left = x + "px";
-      label.style.top = (y + 9) + "px";
-    });
+      const label = dot.nextElementSibling;
+      if (label && label.classList.contains("dot-label")) {
+        label.style.left = x + "px";
+        label.style.top = (y + 9) + "px";
+      }
+    }
     // labels always show — no crowding/collision hiding
 
     const me = inner.querySelector(".me");
