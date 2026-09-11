@@ -30140,8 +30140,9 @@
       b.latitude - a.latitude);
   }
 
-  // Everything on screen, listed underneath: pinned rows first, then whatever
-  // else is inside the scrolled viewport right now.
+  // Everything on screen, listed underneath — nothing else, bookmarked or not.
+  // Being on screen decides whether a row is listed at all; being bookmarked
+  // only decides where in that list it sits.
   function updateMapList() {
     const host = document.getElementById("maplist");
     const wrap = document.getElementById("mapwrap");
@@ -30155,14 +30156,13 @@
     const pinned = [];
     const onScreen = [];
     for (const p of mapPoints) {
-      const id = String(p.show.id);
-      if (stickyTop.has(id)) {
-        pinned.push(p.show);
-        continue;
-      }
       const x = p.x * mapScale;
       const y = p.y * mapScale;
-      if (x >= left && x <= right && y >= top && y <= bottom) onScreen.push(p.show);
+      if (x < left || x > right || y < top || y > bottom) continue;
+      // still pinned once bookmarked, so an accidental un-bookmark does not
+      // drop the row out from under the tap — but only while it is on screen
+      if (stickyTop.has(String(p.show.id))) pinned.push(p.show);
+      else onScreen.push(p.show);
     }
 
     const rows = [...sortForMap(pinned), ...sortForMap(onScreen)];
