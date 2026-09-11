@@ -3,11 +3,13 @@
 // pick one up on a later run.
 
 import { readFile, writeFile } from "node:fs/promises";
+import { findHandle } from "./instagram.mjs";
 
 const UA = "See Saw/37.2 CFNetwork/1498.700.2 Darwin/23.6.0";
 const LIST_URL = "https://seesawmap.com/api/v1/cities/nyc";
 const SHOW_URL = (id) => `https://seesawmap.com/api/v1/shows/${id}`;
 const DATA_PATH = new URL("../data/nyc.json", import.meta.url);
+const IG_PATH = new URL("../data/instagram.json", import.meta.url);
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 const BATCH_SIZE = 8;          // press releases per Gemini call
@@ -193,9 +195,59 @@ ${listing}`;
   return out;
 }
 
+// New galleries appear a few at a time, so look up their Instagram as they turn
+// up rather than leaving the file to rot. Capped so one run cannot spend
+// minutes on a big batch; the rest are picked up next time.
+async function harvestNewGalleries(shows) {
+  let handles = {};
+  try {
+    handles = JSON.parse(await readFile(IG_PATH, "utf8"));
+  } catch {
+    /* first run */
+  }
+  const unknown = [];
+  for (const s of shows) {
+    if (!s.name || !s.url || !String(s.url).trim()) continue;
+    if (Object.prototype.hasOwnProperty.call(handles, s.name)) continue;
+    if (!unknown.some(([n]) => n === s.name)) unknown.push([s.name, s.url]);
+  }
+  if (!unknown.length) return;
+
+  const batch = unknown.slice(0, 10);
+  console.log(`${unknown.length} new gallery(s); looking up ${batch.length}`);
+  for (const [name, url] of batch) {
+    try {
+      const { handle } = await findHandle(url);
+      handles[name] = handle;
+      console.log(`  ${handle ? "@" + handle : "—"}  ${name}`);
+    } catch (e) {
+      console.log(`  lookup failed for ${name}: ${e.message.slice(0, 60)}`);
+    }
+  }
+  const ordered = Object.fromEntries(Object.entries(handles).sort(([a], [b]) => a.localeCompare(b)));
+  await writeFile(IG_PATH, JSON.stringify(ordered, null, 2) + "\n");
+}
+
 // fetched_at is "last checked", not "last changed" — it is the only signal on
 // the page that the refresh is still alive, so every successful run restamps it
 async function writeDoc(listEtag, shows) {
+  // Instagram handles live in their own file, harvested from gallery websites
+  // (see scripts/instagram.mjs). Merged in on every write, including the 304
+  // path, so editing that file alone is enough to correct a handle.
+  let handles = {};
+  try {
+    handles = JSON.parse(await readFile(IG_PATH, "utf8"));
+  } catch {
+    /* no handles file yet */
+  }
+  shows = shows.map((s) => {
+    const out = { ...s };
+    const h = handles[s.name];
+    if (h) out.instagram = h;
+    else delete out.instagram;
+    return out;
+  });
+
   const doc = {
     fetched_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
     list_etag: listEtag,
@@ -332,6 +384,8 @@ async function main() {
     }
     return out;
   });
+
+  await harvestNewGalleries(shows);
 
   const kb = await writeDoc(listEtag, shows);
   console.log(`wrote ${shows.length} shows (${kb} KB) — ${reused} reused, ${written} new, ${blank} blank, ${pending} pending`);

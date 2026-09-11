@@ -29911,9 +29911,13 @@
     const dl = directionsLink(show);
     const addr = addressOnly(show);
     const galleryName = escapeHTML(show.name);
-    // every gallery in the feed carries a url, so the name is a link to its site
-    const galleryLinked = show.url
-      ? `<a class="addr-link" href="${escapeHTML(show.url)}" target="_blank" rel="noopener">${galleryName}</a>`
+    // the gallery name links to its Instagram where we have one, since that is
+    // where galleries actually post; otherwise to the website from the feed
+    const galleryHref = show.instagram
+      ? `https://www.instagram.com/${show.instagram}/`
+      : (show.url || "");
+    const galleryLinked = galleryHref
+      ? `<a class="addr-link" href="${escapeHTML(galleryHref)}" target="_blank" rel="noopener">${galleryName}</a>`
       : galleryName;
     const galleryLine = (dl && addr)
       ? `${galleryLinked}, <a class="addr-link" href="${dl}" target="_blank" rel="noopener">${escapeHTML(addr)}</a>`
