@@ -373,6 +373,41 @@
 
   const BOOKMARK_KEY = "seesawport.bookmarks";
 
+  // Which tab and sub-tab you were on, so a reload puts you back. Deliberately
+  // sessionStorage, not local: reloading mid-visit should not lose your place,
+  // but opening the app fresh tomorrow should start at Openings rather than on
+  // some stale day's map. Note this does NOT preserve the pinned bookmark rows
+  // — clearing those is exactly what a reload is for.
+  const VIEW_KEY = "seesawport.view";
+
+  function saveView() {
+    try {
+      sessionStorage.setItem(VIEW_KEY, JSON.stringify({
+        page: currentPage,
+        nbhd: onViewNeighborhood,
+        day: openingMapDate,
+      }));
+    } catch (e) {
+      // storage unavailable — the app just always opens on Openings
+    }
+  }
+
+  function restoreView() {
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "null");
+    } catch (e) {
+      return;
+    }
+    if (!saved) return;
+    // Validate rather than trust: a stored page id could be from an older
+    // build, and the stored day/neighborhood may no longer exist in the data.
+    // Both of those are re-checked at render, which falls back cleanly.
+    if (PAGES.some(p => p.id === saved.page)) currentPage = saved.page;
+    if (saved.nbhd === null || typeof saved.nbhd === "string") onViewNeighborhood = saved.nbhd;
+    if (saved.day === null || typeof saved.day === "string") openingMapDate = saved.day;
+  }
+
   function loadBookmarks() {
     try {
       const raw = localStorage.getItem(BOOKMARK_KEY);
@@ -601,6 +636,9 @@
     // out the Hamptons, which are a drive away and only wanted deliberately.
     const neighborhoods = [...new Set(onView.map(s => s.neighborhood).filter(Boolean))]
       .sort((a, b) => neighborhoodRank(a) - neighborhoodRank(b) || a.localeCompare(b));
+    if (onViewNeighborhood !== null && !neighborhoods.includes(onViewNeighborhood)) {
+      onViewNeighborhood = null; // stored tab no longer has anything on view
+    }
     const allShows = onView.filter(s => !isHamptons(s));
     const tabs = `<div class="tabs">
       <a data-nbhd="" class="${onViewNeighborhood === null ? "active" : ""}">All (${allShows.length})</a>
@@ -1056,10 +1094,12 @@
     }
 
     applyBookmarkStyles();
+    saveView();
   }
 
   async function main() {
     document.getElementById("content").innerHTML = "loading...";
+    restoreView();
     renderTopNav();
     loadBookmarks();
 
