@@ -29981,6 +29981,18 @@
   // meant Brooklyn and the Hamptons needed an exception; with one direction
   // throughout, the exception is gone.
 
+  // In the list views a bookmarked show rises to the top of the section it is
+  // already in — its date, or its neighborhood — not to the top of the page.
+  // Order within each half is left alone, so both still run north to south.
+  function bookmarkedFirst(items) {
+    const marked = [];
+    const rest = [];
+    for (const s of items) {
+      (bookmarks.has(String(s.id)) ? marked : rest).push(s);
+    }
+    return marked.concat(rest);
+  }
+
   function sortByLatitude(items) {
     return items.slice().sort((a, b) => b.latitude - a.latitude);
   }
@@ -30025,7 +30037,7 @@
     const { openingSoon } = computeLists(latestShows.shows);
     if (!openingSoon.length) return `<div class="empty">nothing upcoming</div>`;
     const groups = groupByKey(openingSoon, s => nycDateKey(s.opening_start_time))
-      .map(([dateKey, items]) => [dateKey, geoSort(items)]);
+      .map(([dateKey, items]) => [dateKey, bookmarkedFirst(geoSort(items))]);
     return renderGroupedByDate(groups);
   }
 
@@ -30053,14 +30065,14 @@
 
     // a single neighborhood needs no headings; "All" keeps them as dividers
     if (onViewNeighborhood !== null) {
-      return tabs + `<div class="entries">${sortByLatitude(pool).map(entryHTML).join("")}</div>`;
+      return tabs + `<div class="entries">${bookmarkedFirst(sortByLatitude(pool)).map(entryHTML).join("")}</div>`;
     }
 
     const groups = groupByKey(pool, s => s.neighborhood || "",
       (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
     return tabs + groups.map(([nbhd, items]) => `
       <div class="date-head">${capWords(nbhd) || "Unknown"}</div>
-      <div class="entries">${sortByLatitude(items).map(entryHTML).join("")}</div>
+      <div class="entries">${bookmarkedFirst(sortByLatitude(items)).map(entryHTML).join("")}</div>
     `).join("");
   }
 
