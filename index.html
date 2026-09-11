@@ -29743,15 +29743,15 @@
   const HAMPTONS = "hamptons";
   const DEFAULT_MAP_CENTER = { lat: 40.718, lon: -74.001 }; // a little up + right of the old anchor
 
-  // The traced basemap sits about 20 m north-west of where the coordinates put
+  // The traced basemap sits about 20 m south-east of where the coordinates put
   // it, so dots drifted off their buildings. Calibrated from two neighbours on
   // White St — Grimm at no. 54 and 60 White — by the offset needed to seat
   // both. Applied to the projection rather than by nudging the basemap: moving
-  // the art leaves an uncovered strip at the right and bottom edges, and the
-  // artboard crop is deliberate. Under a pixel and a half, invisible until the
-  // deep zoom levels, where it is most of a block.
-  const PLOT_DX = 1.2866;
-  const PLOT_DY = 0.4820;
+  // the art leaves an uncovered strip at the edges, and the artboard crop is
+  // deliberate. Under a pixel and a half, invisible until the deep zoom
+  // levels, where it is most of a block.
+  const PLOT_DX = -1.2866;
+  const PLOT_DY = -0.4820;
   let userLoc = null; // {lat, lon} once the browser gives us a fix
   let locationOn = false;
   let locationTimer = null;
