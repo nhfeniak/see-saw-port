@@ -29911,9 +29911,13 @@
     const dl = directionsLink(show);
     const addr = addressOnly(show);
     const galleryName = escapeHTML(show.name);
+    // every gallery in the feed carries a url, so the name is a link to its site
+    const galleryLinked = show.url
+      ? `<a class="addr-link" href="${escapeHTML(show.url)}" target="_blank" rel="noopener">${galleryName}</a>`
+      : galleryName;
     const galleryLine = (dl && addr)
-      ? `${galleryName}, <a class="addr-link" href="${dl}" target="_blank" rel="noopener">${escapeHTML(addr)}</a>`
-      : galleryName + (addr ? `, ${escapeHTML(addr)}` : "");
+      ? `${galleryLinked}, <a class="addr-link" href="${dl}" target="_blank" rel="noopener">${escapeHTML(addr)}</a>`
+      : galleryLinked + (addr ? `, ${escapeHTML(addr)}` : "");
     return `
       <div class="entry">
         <div class="entry-main">
