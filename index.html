@@ -29758,8 +29758,14 @@
   let latestShows = null;
   let bookmarks = new Set();
   let bookmarksLoaded = false;
-  let mapListIds = [];   // bookmarked shows listed under the current map
-  let mapListKey = null; // which map view that list was built for
+  // Rows pinned to the top of the map list. A show joins when bookmarked and
+  // never leaves until the page is reloaded, so un-bookmarking by mistake does
+  // not make the row vanish before it can be tapped again.
+  let onViewNeighborhood = null; // null = All
+  let stickyTop = new Set();
+  let mapPoints = [];    // what is plotted in the current map view
+  let mapKind = null;    // "opening" | "onview"
+  let mapListSig = "";   // last rendered row order, to skip redundant repaints
   let currentPage = "opening";
   let openingMapDate = null; // NYC date-key ("YYYY-MM-DD") of the selected day subtab
 
@@ -29807,13 +29813,20 @@
     } catch (e) {
       bookmarks = new Set(); // private window, blocked storage, corrupt value
     }
+    stickyTop = new Set(bookmarks);
     bookmarksLoaded = true;
   }
 
   function toggleBookmark(id) {
     const key = String(id);
-    if (bookmarks.has(key)) bookmarks.delete(key); else bookmarks.add(key);
+    if (bookmarks.has(key)) {
+      bookmarks.delete(key); // stays pinned — stickyTop is not touched here
+    } else {
+      bookmarks.add(key);
+      stickyTop.add(key);
+    }
     applyBookmarkStyles();
+    updateMapList();
     try {
       localStorage.setItem(BOOKMARK_KEY, JSON.stringify([...bookmarks]));
     } catch (e) {
@@ -30008,14 +30021,32 @@
     if (!latestShows) return `<div class="empty">no data yet</div>`;
     const { onView } = computeLists(latestShows.shows);
 
-    // no sub-tabs here — one list, every neighborhood but the Hamptons, which
-    // stay reachable on the On View map
-    const pool = onView.filter(s => !isHamptons(s));
-    if (!pool.length) return `<div class="empty">nothing here</div>`;
+    // Sub-tabs in the same style as the openings map's date tabs. "All" leaves
+    // out the Hamptons, which are a drive away and only wanted deliberately.
+    const neighborhoods = [...new Set(onView.map(s => s.neighborhood).filter(Boolean))]
+      .sort((a, b) => neighborhoodRank(a) - neighborhoodRank(b) || a.localeCompare(b));
+    const allShows = onView.filter(s => !isHamptons(s));
+    const tabs = `<div class="tabs">
+      <a data-nbhd="" class="${onViewNeighborhood === null ? "active" : ""}">All (${allShows.length})</a>
+      ${neighborhoods.map(n => {
+        const count = onView.filter(s => (s.neighborhood || "") === n).length;
+        return `<a data-nbhd="${escapeHTML(n)}" class="${onViewNeighborhood === n ? "active" : ""}">${escapeHTML(capWords(n))} (${count})</a>`;
+      }).join("")}
+    </div>`;
+
+    const pool = onViewNeighborhood === null
+      ? allShows
+      : onView.filter(s => (s.neighborhood || "") === onViewNeighborhood);
+    if (!pool.length) return tabs + `<div class="empty">nothing here</div>`;
+
+    // a single neighborhood needs no headings; "All" keeps them as dividers
+    if (onViewNeighborhood !== null) {
+      return tabs + `<div class="entries">${sortByLatitude(pool, onViewNeighborhood).map(entryHTML).join("")}</div>`;
+    }
 
     const groups = groupByKey(pool, s => s.neighborhood || "",
       (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
-    return groups.map(([nbhd, items]) => `
+    return tabs + groups.map(([nbhd, items]) => `
       <div class="date-head">${capWords(nbhd) || "Unknown"}</div>
       <div class="entries">${sortByLatitude(items, nbhd).map(entryHTML).join("")}</div>
     `).join("");
@@ -30066,30 +30097,9 @@
 
     const points = showsToPoints(shows);
 
-    // The list under the map is fixed when the view opens: un-bookmarking a row
-    // greys its dot but leaves the row in place until you change page, so a
-    // mistaken tap can be undone.
-    const viewKey = kind === "opening" ? `opening:${openingMapDate}` : "onview";
-    const plottedBookmarked = points
-      .map(p => String(p.show.id))
-      .filter(id => bookmarks.has(id));
-    if (!bookmarksLoaded) {
-      // bookmarks haven't arrived yet — show what we have but don't lock it in
-      mapListIds = plottedBookmarked;
-      mapListKey = null;
-    } else if (mapListKey !== viewKey) {
-      mapListKey = viewKey;
-      mapListIds = plottedBookmarked;
-    }
-    const byId = new Map(points.map(p => [String(p.show.id), p.show]));
-    const listShows = mapListIds.map(id => byId.get(id)).filter(Boolean);
-    const ordered = kind === "opening"
-      ? geoSort(listShows)
-      : listShows.slice().sort((a, b) =>
-          neighborhoodRank(a.neighborhood) - neighborhoodRank(b.neighborhood) ||
-          (NORTH_TO_SOUTH.has((a.neighborhood || "").toLowerCase())
-            ? b.latitude - a.latitude
-            : a.latitude - b.latitude));
+    mapPoints = points;
+    mapKind = kind;
+    mapListSig = "";
 
     return `
       ${subtabsHTML}
@@ -30107,8 +30117,50 @@
         <button id="zoomIn" aria-label="zoom in">+</button>
         <button id="locate" class="loc" aria-label="show my location"></button>
       </div>
-      ${ordered.length ? `<div class="entries maplist">${ordered.map(entryHTML).join("")}</div>` : ""}
+      <div class="entries maplist" id="maplist"></div>
     `;
+  }
+
+  function sortForMap(shows) {
+    if (mapKind === "opening") return geoSort(shows);
+    return shows.slice().sort((a, b) =>
+      neighborhoodRank(a.neighborhood) - neighborhoodRank(b.neighborhood) ||
+      (NORTH_TO_SOUTH.has((a.neighborhood || "").toLowerCase())
+        ? b.latitude - a.latitude
+        : a.latitude - b.latitude));
+  }
+
+  // Everything on screen, listed underneath: pinned rows first, then whatever
+  // else is inside the scrolled viewport right now.
+  function updateMapList() {
+    const host = document.getElementById("maplist");
+    const wrap = document.getElementById("mapwrap");
+    if (!host || !wrap || !mapScale) return;
+
+    const left = wrap.scrollLeft;
+    const top = wrap.scrollTop;
+    const right = left + wrap.clientWidth;
+    const bottom = top + wrap.clientHeight;
+
+    const pinned = [];
+    const onScreen = [];
+    for (const p of mapPoints) {
+      const id = String(p.show.id);
+      if (stickyTop.has(id)) {
+        pinned.push(p.show);
+        continue;
+      }
+      const x = p.x * mapScale;
+      const y = p.y * mapScale;
+      if (x >= left && x <= right && y >= top && y <= bottom) onScreen.push(p.show);
+    }
+
+    const rows = [...sortForMap(pinned), ...sortForMap(onScreen)];
+    const sig = rows.map(s => s.id).join(",");
+    if (sig === mapListSig) return; // nothing moved; don't rebuild mid-scroll
+    mapListSig = sig;
+    host.innerHTML = rows.map(entryHTML).join("");
+    applyBookmarkStyles();
   }
 
   function centerOn(wrap, imgX, imgY, scale) {
@@ -30168,6 +30220,8 @@
     } else if (mapCenterImgX !== null) {
       centerOn(wrap, mapCenterImgX, mapCenterImgY, mapScale);
     }
+
+    updateMapList();
   }
 
   function saveCamera(wrap) {
@@ -30196,7 +30250,14 @@
   }
 
   function attachPinchHandlers(wrap) {
-    wrap.addEventListener("scroll", () => saveCamera(wrap), { passive: true });
+    wrap.addEventListener("scroll", () => {
+      saveCamera(wrap);
+      // Called straight through rather than via requestAnimationFrame: the
+      // visibility pass is a few hundred comparisons and the list only rebuilds
+      // when the rows actually change, so rAF bought nothing and stopped
+      // updating entirely whenever the page was not being painted.
+      updateMapList();
+    }, { passive: true });
 
     wrap.addEventListener("touchstart", (e) => {
       if (e.touches.length === 2) {
@@ -30312,7 +30373,6 @@
         const prevWrap = document.getElementById("mapwrap");
         if (prevWrap) saveCamera(prevWrap);
         currentPage = a.dataset.page;
-        mapListKey = null; // leaving the view rebuilds its bookmark list
         renderTopNav();
         renderContent();
       });
@@ -30337,6 +30397,13 @@
       });
     } else if (currentPage === "onview") {
       content.innerHTML = renderOnViewPage();
+      content.querySelectorAll(".tabs a[data-nbhd]").forEach(a => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          onViewNeighborhood = a.dataset.nbhd || null;
+          renderContent();
+        });
+      });
     } else if (currentPage === "opening-map" || currentPage === "onview-map") {
       const kind = currentPage === "opening-map" ? "opening" : "onview";
       content.innerHTML = renderMapPage(kind);
