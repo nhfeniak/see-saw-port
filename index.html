@@ -29751,7 +29751,9 @@
   // deliberate. Under a pixel and a half, invisible until the deep zoom
   // levels, where it is most of a block.
   const PLOT_DX = -1.2866;
-  const PLOT_DY = -0.4820;
+  // DY tuned again afterwards: map down a further 1.5x the gap between
+  // D. D. D. D. (79 Leonard) and 81 Leonard, i.e. -0.4311 more.
+  const PLOT_DY = -0.9131;
   let userLoc = null; // {lat, lon} once the browser gives us a fix
   let locationOn = false;
   let locationTimer = null;
