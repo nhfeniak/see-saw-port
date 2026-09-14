@@ -28,7 +28,7 @@
     --chrome-ink:  #141319;
     --mark:        #E8B830;   /* the yellow of a cab */
     --bookmark:    #FFD91A;
-    --location:    #C42A1E;   /* the tail lights on the street below */
+    --location:    #1E5FD8;
   }
 
   :root[data-scene="night"] {
@@ -41,7 +41,7 @@
     --chrome-ink:  #F0EDE6;
     --mark:        #E8B830;
     --bookmark:    #FFD91A;
-    --location:    #C42A1E;   /* the tail lights on the street below */
+    --location:    #1E5FD8;
   }
 
   * {
@@ -79,7 +79,7 @@
 
   /* One box across the top for everything, built like a listing's roof —
      no rules, no plates, nothing dividing it. */
-  .meta, nav.top, .tabs {
+  h1.site, .meta, nav.top, .tabs {
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
@@ -87,6 +87,7 @@
     padding: 4px 11px;
   }
 
+  h1.site { font-size: 22px; font-weight: bold; padding: 10px 11px 0; }
   .meta { padding-top: 9px; }
 
   nav.top {
@@ -221,6 +222,7 @@
 
   /* Above the clouds there is no street to leave room for and nothing to
      stand on, so the interface is just text across the full width. */
+  :root[data-mode="clouds"] h1.site,
   :root[data-mode="clouds"] .meta,
   :root[data-mode="clouds"] nav.top,
   :root[data-mode="clouds"] .tabs,
@@ -358,6 +360,7 @@
 </head>
 <body>
 <canvas id="scene" aria-hidden="true"></canvas>
+<h1 class="site">See Saw Port</h1>
 <div class="meta" id="updated">loading...</div>
 <nav class="top" id="topnav"></nav>
 
@@ -1227,8 +1230,10 @@
       night: true,
     },
     day: {
-      map: { back: "#E8E7E7", block: "#DDDCDC", grid: "#6E6E74",
-             line: "#6E6E74", water: "#1F4568" },   // the street, and the river
+      // ground, then the blocks on it, then the street network over both —
+      // three tones, because a street the colour of the ground is no street
+      map: { back: "#E8E7E7", block: "#DDDCDC", grid: "#B0A49D",
+             line: "#6E6E74", water: "#1F4568" },
       glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
@@ -1258,11 +1263,11 @@
   // that spill reaches — half the beam over the pavement. A flat white was
   // brighter than anything else in the scene by a wide margin.
   function winColour(S) {
-    if (!S.gallery) return S.walks[1];          // daylight: there is no spill
+    if (!S.gallery) return null;                // daylight: there is no spill
     const w = S.walks.map(toRGB);
     return toHex(S.gallery.map((c, i) => {
       const peak = (c + w.reduce((t, q) => t + q[i], 0) / w.length) / 2;
-      return peak + (c - peak) * .15;
+      return peak + (c - peak) * .25;
     }));
   }
 
@@ -1390,8 +1395,10 @@
   // removed and respawned, so the lines of people stay continuous.
   // Nobody walks through anybody. Once everyone has moved, any two people on
   // the same pavement closer than their two widths are pushed apart along the
-  // line between them and put back between the kerbs; two passes settle a
-  // crowd that one leaves shivering. Avoidance steers, this is what decides.
+  // line between them and put back between the kerbs, the whole overlap at
+  // once. Feeding it in a fraction at a time to smooth it out does the
+  // opposite — it leaves a residue to correct again next frame, and that is a
+  // shiver. Avoidance is what steers; this is only the thing that decides.
   function separate(g) {
     const D = PED_R * 2, lo = PED_R, hi = WALK_W - PED_R;
     // built here rather than reused from the step: somebody who has just
@@ -1436,20 +1443,26 @@
       // a target at random meant everyone's average was the middle of the
       // pavement, so that is where they all ended up, on top of each other.
       if (Math.random() < dt * .05) w.lane = rnd(PED_R, WALK_W - PED_R);
-      let target = w.lane, limit = w.base;
+      let target = w.lane, limit = w.base, met = null;
       for (const o of lanes.get(bucket(w))) {
         if (o === w) continue;
         const ahead = (w.axis === "v" ? o.y - w.y : o.x - w.x) * w.dir;
         if (ahead < 0 || ahead > 30 || Math.abs(o.off - w.off) > 8) continue;
         if (o.dir === w.dir) limit = Math.min(limit, o.speed * .9);
-        else {                              // give way to them, not to the kerb
-          limit = Math.min(limit, w.base * .6);
-          target = o.off > w.off ? w.off - 7 : w.off + 7;
-        }
+        else if (!met || ahead < met.ahead) met = { o, ahead };   // the nearest
       }
+      if (met) {
+        // Pick a side on meeting somebody and hold it, and aim at a fixed
+        // point beside them rather than at an offset from wherever you have
+        // got to — a target measured from yourself runs away as you follow it,
+        // and a side chosen afresh each frame swaps back and forth.
+        limit = Math.min(limit, w.base * .6);
+        if (!w.dodge) w.dodge = met.o.off > w.off ? -1 : 1;
+        target = met.o.off + w.dodge * (PED_R * 2 + 1);
+      } else w.dodge = 0;
       w.speed += (limit - w.speed) * Math.min(1, dt * 3);
       target = Math.min(WALK_W - PED_R, Math.max(PED_R, target));
-      w.off += Math.max(-14 * dt, Math.min(14 * dt, target - w.off));
+      w.off += Math.max(-9 * dt, Math.min(9 * dt, target - w.off));
 
       if (w.axis === "v") {
         w.x = g.walkX + w.off;
@@ -1729,7 +1742,7 @@
     // the gap. The lit window sits on it, hard against the pavement and on top
     // of whatever light it is throwing, and grows as the perspective opens.
     cx.fillStyle = winCol;
-    for (const b of boxes) {
+    for (const b of winCol ? boxes : []) {
       const wall = Math.min(Math.abs(b.shift), 9);
       if (wall < 1) continue;
       const above = b.shift > 0;                  // which building is showing
