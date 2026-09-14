@@ -77,7 +77,7 @@
     font-family: Arial, Helvetica, sans-serif;
     font-size: 14px;
     line-height: 1.4;
-    padding: 12px;
+    padding: 12px 12px 12px 0;   /* roofs run right to the left edge */
     max-width: 640px;
   }
 
@@ -101,7 +101,7 @@
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
-    margin: 0 96px 0 0;   /* same width as a roof — it must not cover the street */
+    margin: 0 104px 0 0;   /* same width as a roof — it must not cover the street */
     padding: 4px 11px;
   }
 
@@ -136,11 +136,11 @@
   .date-head {
     position: relative;
     box-sizing: border-box;
-    height: 126px;          /* pavement, parking, lane, parking, pavement */
+    height: 136px;          /* pavement, parking, lane, parking, pavement */
     display: flex;
     align-items: flex-start;
     margin: 0;
-    padding: 48px 11px 0;   /* puts the words in the carriageway */
+    padding: 54px 11px 0;   /* puts the words in the carriageway */
     background: none;
     color: var(--head-ink);
     font-weight: bold;
@@ -171,7 +171,7 @@
   .entry {
     display: grid;
     /* the second column IS the street; keep it equal to GUTTER in script */
-    grid-template-columns: 1fr 96px;
+    grid-template-columns: 1fr 104px;
   }
 
   /* one building, one flat colour, as tall as its own text needs */
@@ -233,14 +233,27 @@
     box-shadow: none;
   }
 
-  .empty { margin-right: 96px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+  .empty { margin-right: 104px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+
+  /* Above the clouds there is no street to leave room for and nothing to
+     stand on, so the interface is just text across the full width. */
+  :root[data-mode="clouds"] .meta,
+  :root[data-mode="clouds"] nav.top,
+  :root[data-mode="clouds"] .tabs,
+  :root[data-mode="clouds"] .map-controls,
+  :root[data-mode="clouds"] .empty {
+    margin-right: 0;
+    background: none;
+  }
+
+  :root[data-mode="clouds"] .map-controls button { background: var(--chrome2); }
 
   /* ---- maps ---- */
   .map-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 96px 0 0;
+    margin: 0 104px 0 0;
     padding: 10px 11px;
     background: var(--chrome);
   }
@@ -1156,11 +1169,11 @@
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
   const FACADE_RATIO = ROOF_H_M / (CAM_H_M - ROOF_H_M);
 
-  const GUTTER = 96;
-  const WALK_W = 32;                 // 3.8 m pavement
-  // A box truck is 2.35 m — 20 px. The old 16 px lanes were narrower than the
-  // widest thing driving in them, which is why vehicles sat on each other.
-  const PARK_W = 20, LANE_W = 22;
+  const GUTTER = 104;
+  // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either
+  // side of an 11 ft lane, 52 ft building line to building line.
+  const WALK_W = 32;                 // 3.8 m / 12 ft
+  const PARK_W = 22, LANE_W = 28;    // 2.6 m / 8 ft and 3.3 m / 11 ft
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = 4;                   // every person the same size
   const ROAD_W = PARK_W * 2 + LANE_W;
@@ -1249,8 +1262,8 @@
     const row = [];
     let y = rnd(-80, 20);
     while (y < H + 80) {
-      if (Math.random() < 0.76) { const c = makeCar(S, y); row.push(c); y += c.spec.len + rnd(3, 9); }
-      else y += rnd(30, 70);                 // hydrant, driveway, or just a space
+      if (Math.random() < 0.7) { const c = makeCar(S, y); row.push(c); y += c.spec.len + rnd(10, 26); }
+      else y += rnd(50, 110);                // hydrant, driveway, or just a space
     }
     return row;
   }
@@ -1291,8 +1304,8 @@
       for (const row of ["parkT", "parkB"]) {
         let x = rnd(-80, 20);
         while (x < W) {
-          if (Math.random() < 0.52) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + rnd(4, 14); }
-          else x += rnd(44, 110);
+          if (Math.random() < 0.5) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + rnd(10, 26); }
+          else x += rnd(60, 130);
         }
       }
       crossStreets.set(key, c);
@@ -1387,7 +1400,12 @@
     }
   }
 
-  const GAP_M = M(1.4);   // 1.4 m of daylight between bumpers
+  // Bumper to bumper only at a standstill. Moving traffic keeps roughly
+  // three-quarters of a second of headway, so the gap opens as a car speeds
+  // up and closes only as it slows to a stop.
+  const GAP_STOP = M(1.4);
+  const HEADWAY = 0.75;
+  const gapFor = (c) => GAP_STOP + (c.speed || 0) * HEADWAY;
 
   // A queue on a one-way street: nobody may pass through the car in front, and
   // nobody may enter a junction that is not theirs. Positions are clamped
@@ -1399,7 +1417,7 @@
       let cap = stopLine ? stopLine(c) : Infinity;    // a red light ahead
       if (i > 0) {
         const lead = list[i - 1];
-        cap = Math.min(cap, getPos(lead) - lenOf(lead) - GAP_M);
+        cap = Math.min(cap, getPos(lead) - lenOf(lead) - gapFor(c));
       }
       if (getPos(c) > cap) { setPos(c, cap); c.stopped = true; } else c.stopped = false;
     }
@@ -1527,27 +1545,28 @@
     cx.restore();
   }
 
-  // Bars centred in the carriageway they cross, sitting against the corner.
-  function bars(x, y, along, across, vertical, colour) {
-    const BAR = 8, GAP = 5;
-    const n = Math.max(1, Math.floor((across + GAP) / (BAR + GAP)));
-    const run = n * BAR + (n - 1) * GAP;
-    const start = Math.round((across - run) / 2);
+  // Bar and gap the same width, with a gap at each end so the pattern never
+  // runs into the kerb: n bars and n+1 gaps across the carriageway, so the
+  // unit is span / (2n + 1). Four bars across 72 px comes out at exactly 8.
+  const ZEBRA_N = 4;
+  function zebra(x, y, across, along, barsRunDown, colour) {
+    const unit = across / (2 * ZEBRA_N + 1);
     cx.fillStyle = colour;
-    for (let i = 0; i < n; i++) {
-      const o = start + i * (BAR + GAP);
-      if (vertical) cx.fillRect(x + o, y, BAR, along);
-      else cx.fillRect(x, y + o, along, BAR);
+    for (let i = 0; i < ZEBRA_N; i++) {
+      const o = unit * (1 + 2 * i);
+      if (barsRunDown) cx.fillRect(R(x + o), R(y), R(unit), R(along));
+      else cx.fillRect(R(x), R(y + o), R(along), R(unit));
     }
   }
 
+  // A crossing is the pavement carried across the road, so it sits exactly
+  // where the pavement is — not alongside it. Crossing the cross street means
+  // standing in the avenue's pavement column; crossing the avenue means
+  // standing in one of the cross street's pavements.
   function drawCrossPaint(g, b, S) {
-    const bl = R(g.walkX), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
-    // across the cross street, right at the corner of the pavement
-    bars(bl - 24, roadTop, 20, ROAD_W, false, S.paint);
-    // across the avenue, one either side of the junction, flush to the corner
-    bars(R(g.roadX), roadTop - 20, 20, ROAD_W, true, S.paint);
-    bars(R(g.roadX), roadBot, 20, ROAD_W, true, S.paint);
+    zebra(g.walkX, b.roadTop, ROAD_W, WALK_W, false, S.paint);
+    zebra(g.roadX, b.top, ROAD_W, WALK_W, true, S.paint);
+    zebra(g.roadX, b.roadBot, ROAD_W, WALK_W, true, S.paint);
   }
 
   function draw(par) {
@@ -1605,12 +1624,12 @@
     }
 
     // 4 — parked. Nobody parks in a junction or on a crossing.
-    const blockedV = (y, len) => boxes.some(b => y + len > b.roadTop - 26 && y < b.roadBot + 26);
+    const blockedV = (y, len) => boxes.some(b => y + len > b.top && y < b.bot);
     for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
     for (const p of avParkB) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
     for (const b of boxes) {
       const st = crossStreets.get(b.key); if (!st) continue;
-      const stop = g.walkX - 26;
+      const stop = g.walkX - 6;
       for (const p of st.parkT) if (p.x + p.spec.len < stop) vehH(R(b.roadTop), R(p.x + p.spec.len), p.spec, p.color, S.glass);
       for (const p of st.parkB) if (p.x + p.spec.len < stop) vehH(R(b.roadBot) - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
     }
@@ -1694,7 +1713,7 @@
     const wrap = document.getElementById("mapwrap");
     if (!wrap || !S.glow) return;
     const r = wrap.getBoundingClientRect();
-    const D = 44, INSET = 42;
+    const D = 44, INSET = 0;   // up to the corners, never beyond them
     const w = r.width - INSET * 2, hh = r.height - INSET * 2;
     if (w > 0) {
       beam(R(r.left + INSET), R(r.top - D), R(w), D, S.glow, "up", .5);
