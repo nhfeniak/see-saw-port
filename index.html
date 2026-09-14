@@ -85,7 +85,7 @@
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
-    margin: 0 38px 0 0;   /* same width as a roof — it must not cover the street */
+    margin: 0 var(--gutter, 38px) 0 0;   /* as wide as a roof: it must not cover the street */
     padding: 4px 11px;
   }
 
@@ -120,11 +120,11 @@
   .date-head {
     position: relative;
     box-sizing: border-box;
-    height: 93px;           /* pavement, parking, lane, parking, pavement */
+    height: var(--cross-h, 100px);   /* pavement, parking, lane, parking, pavement */
     display: flex;
     align-items: flex-start;
     margin: 0;
-    padding: 31px 11px 0;   /* puts the words in the carriageway */
+    padding: var(--cross-pad, 37px) 11px 0;   /* puts the words in the carriageway */
     background: none;
     color: var(--head-ink);
     font-weight: bold;
@@ -154,8 +154,8 @@
      bookmark sits; the row underneath is the gap you see down through. */
   .entry {
     display: grid;
-    /* the second column IS the street; keep it equal to GUTTER in script */
-    grid-template-columns: 1fr 38px;
+    /* the second column IS the street, set from GUTTER in script */
+    grid-template-columns: 1fr var(--gutter, 38px);
   }
 
   /* one building, one flat colour, as tall as its own text needs */
@@ -217,7 +217,7 @@
     box-shadow: none;
   }
 
-  .empty { margin-right: 38px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+  .empty { margin-right: var(--gutter, 38px); padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
 
   /* Above the clouds there is no street to leave room for and nothing to
      stand on, so the interface is just text across the full width. */
@@ -234,7 +234,7 @@
 
   /* no roof up here, so the ring takes the colour of the text it sits beside
      rather than of a building that is not being drawn */
-  :root[data-mode="clouds"] .bm::after { box-shadow: inset 0 0 0 1px var(--chrome-ink); }
+  :root[data-mode="clouds"] .bm:not(.on)::after { box-shadow: inset 0 0 0 1px var(--chrome-ink); }
   :root[data-mode="clouds"] .entry-main { padding-right: 11px; }
 
   :root[data-mode="clouds"] .map-controls button { background: var(--chrome2); }
@@ -290,19 +290,18 @@
 
   /* the basemap carries its own greys; repaint them to match the scene.
      #mapinner beats the <style> inside the SVG on specificity. */
-  :root[data-scene="night"] #mapinner .st0 { fill: #0C0A0A; }
-  :root[data-scene="night"] #mapinner .st1 { fill: #191519; }
-  :root[data-scene="night"] #mapinner .st2 { opacity: 1; fill: #191519; }
-  :root[data-scene="night"] #mapinner .st3 { stroke: #7A5423; }
-  :root[data-scene="day"]   #mapinner .st0 { fill: #CFC9C4; }
-  :root[data-scene="day"]   #mapinner .st1 { fill: #DED8D3; }
-  :root[data-scene="day"]   #mapinner .st2 { opacity: 1; fill: #DED8D3; }
-  :root[data-scene="day"]   #mapinner .st3 { stroke: #9A938C; }
+  /* The map is the same city from much further up, so it is painted out of
+     the list view's own palette — blocks are roof stock, the grid between them
+     is the street, the strokes are lit pavement. The values come from SCENE,
+     so the two pages cannot drift apart again. */
+  #mapinner .st0 { fill: var(--map-grid); }
+  #mapinner .st1 { fill: var(--map-block); }
+  #mapinner .st2 { opacity: 1; fill: var(--map-block); }
+  #mapinner .st3 { stroke: var(--map-line); }
 
   /* The rivers are the only paths in the basemap carrying no class, so they
      kept their default black and read as holes once the land went light. */
-  :root[data-scene="night"] #mapinner path:not([class]) { fill: #08090C; }
-  :root[data-scene="day"]   #mapinner path:not([class]) { fill: #6B7A82; }
+  #mapinner path:not([class]) { fill: var(--map-water); }
 
   .dot {
     position: absolute;
@@ -1147,8 +1146,8 @@
   // ==================================================================
   // The street, one floor below the listings.
   //
-  // Scale comes from the pavement: Tribeca sidewalks run ~4 m, drawn 34 px,
-  // so 8.5 px/m. Every size and speed below is a real quantity through it.
+  // Scale comes from the pavement: a Tribeca sidewalk runs ~3.8 m, drawn 24 px,
+  // so 6.2 px/m. Every size and speed below is a real quantity through it.
   //
   // Camera 220 m up over 20 m rooftops — six cast-iron storeys. Image
   // motion goes as 1/depth, so the street runs at (220-20)/220 = 0.909 of
@@ -1158,7 +1157,7 @@
   // five cars per scene, and no more.
   // ==================================================================
 
-  const PX_PER_M = 5.67;             // two thirds of the old 8.5
+  const PX_PER_M = 6.2;
   const M = (m) => m * PX_PER_M;
   const ROOF_H_M = 20, CAM_H_M = 220;
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
@@ -1178,6 +1177,15 @@
   const CROSS_H = WALK_W * 2 + ROAD_W;
   const TILE = 900;
 
+  // The listings are built to the same street: the pavement column beside a
+  // roof is GUTTER wide and the gap at a heading is a junction deep. Handing
+  // the numbers to CSS rather than repeating them there is what stops the two
+  // drifting apart, which they have done twice.
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--gutter", GUTTER + "px");
+  rootStyle.setProperty("--cross-h", CROSS_H + "px");
+  rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
+
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
   const CAR_W = Math.round(M(2.1));      // 2.1 m, every vehicle
@@ -1194,31 +1202,39 @@
 
   const SCENE = {
     night: {
-      cloud: "#2A2730", glow: [255, 214, 150],
+      // the map, from the same four roofs and the same street
+      map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
+             line: "#54452F", water: "#000000" },
+      glow: [255, 214, 150],
       blank: "#000000", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
       glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
-      density: { walkers: 46, cars: 6 },
+      density: { walkers: 46, cars: 6, park: .70,
+                 crossCars: 3, crossPark: .50, crossPeds: 5 },
       night: true,
     },
     day: {
-      cloud: "#EDEBE6", glow: null,
+      map: { back: "#E8E7E7", block: "#DDDCDC", grid: "#B0A49D",
+             line: "#A89C96", water: "#3B3A44" },
+      glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
       head: null, tail: null, gallery: null,
-      density: { walkers: 18, cars: 4 },
+      // daylight on a weekday afternoon, not an opening: the street is quiet
+      density: { walkers: 8, cars: 2, park: .30,
+                 crossCars: 1, crossPark: .22, crossPeds: 2 },
       night: false,
     },
   };
 
   let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
-  let peds = [], avCars = [], avParkA = [], slabs = [];
+  let peds = [], avCars = [], avParkA = [], slabs = [], avLights = [];
   let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1263,11 +1279,24 @@
     }
   }
 
+  // Lit shopfronts along a building: irregular gaps, and each one as long as
+  // whatever is behind the glass. Laid out along one axis for a whole tile or
+  // a whole block, so a gallery keeps its frontage instead of flickering.
+  function lightRun(span) {
+    const out = [];
+    for (let a = rnd(0, 120); a < span; ) {
+      const len = rnd(16, 84);
+      out.push({ a, len });
+      a += len + rnd(36, 210);
+    }
+    return out;
+  }
+
   function parkRow(S, H) {
     const row = [];
     let y = rnd(-80, 20);
     while (y < H + 80) {
-      if (Math.random() < 0.7) { const c = makeCar(S, y); row.push(c); y += c.spec.len + rnd(10, 26); }
+      if (Math.random() < S.density.park) { const c = makeCar(S, y); row.push(c); y += c.spec.len + rnd(10, 26); }
       else y += rnd(50, 110);                // hydrant, driveway, or just a space
     }
     return row;
@@ -1279,7 +1308,7 @@
     const walker = (y, dir, hold) => {
       const v = hold ? 0 : M(rnd(1.1, 1.6)), off = rnd(3, WALK_W - 3);
       return { axis: "v", x: g.walkX + off, y, off, offT: off, dir, speed: v, base: v,
-               r: PED_R, color: pick(S.coats), hold: hold || 0 };
+               r: PED_R, color: pick(S.coats), hold: hold || 0, key: null, side: 0 };
     };
     peds = [];
     for (let i = 0; i < S.density.walkers; i++)
@@ -1296,6 +1325,7 @@
 
     crossStreets.clear();
     buildSlabs(S);
+    avLights = lightRun(TILE);
   }
 
   // Each heading keeps its own cross street, keyed by its text so it survives
@@ -1303,14 +1333,26 @@
   function crossFor(key, S, W) {
     let c = crossStreets.get(key);
     if (!c) {
-      c = { cars: [], parkT: [], parkB: [], occ: null };
-      for (let i = 0; i < 3; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: M(rnd(6.7, 9.4)), color: pick(S.cars) });
+      const d = S.density;
+      c = { cars: [], parkT: [], parkB: [], occ: null, lights: [] };
+      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: M(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = rnd(-80, 20);
         while (x < W) {
-          if (Math.random() < 0.5) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + rnd(10, 26); }
+          if (Math.random() < d.crossPark) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + rnd(10, 26); }
           else x += rnd(60, 130);
         }
+      }
+      // one frontage per side of the street, facing the pavement below it
+      for (const side of [0, 1]) for (const L of lightRun(W)) c.lights.push({ x: L.a, len: L.len, side });
+      // A block only ever filled up when someone walked round the corner onto
+      // it, so every street started deserted. It gets its own crowd instead,
+      // in the same pool as the avenue's, free to swap between the two.
+      for (let i = 0; i < d.crossPeds; i++) {
+        const v = M(rnd(1.1, 1.6)), off = rnd(3, WALK_W - 3);
+        peds.push({ axis: "h", key, side: Math.random() < .5 ? 1 : 0, off,
+                    x: rnd(4, W - 4), y: -999, dir: Math.random() < .5 ? 1 : -1,
+                    speed: v, base: v, r: PED_R, color: pick(S.coats), hold: 0 });
       }
       crossStreets.set(key, c);
     }
@@ -1323,6 +1365,7 @@
   // walks the block, turns back, and rejoins the avenue. Nothing is ever
   // removed and respawned, so the lines of people stay continuous.
   function stepWalkers(dt, g, H, boxes) {
+    const byKey = new Set(boxes.map(b => b.key));
     for (const w of peds) {
       if (w.hold === Infinity) continue;
 
@@ -1350,12 +1393,17 @@
         for (const b of boxes) {                                  // a corner
           const near = w.y > b.top + 3 && w.y < b.top + WALK_W - 3;
           const far = w.y > b.roadBot + 3 && w.y < b.roadBot + WALK_W - 3;
-          if ((near || far) && Math.random() < 1.5 * dt) { w.axis = "h"; w.dir = -1; break; }
+          if ((near || far) && Math.random() < 1.5 * dt) {
+            w.axis = "h"; w.dir = -1; w.key = b.key; w.side = near ? 0 : 1;
+            w.off = w.offT = w.y - (near ? b.top : b.roadBot);
+            break;
+          }
         }
       } else {
+        if (!byKey.has(w.key)) continue;        // its street is off the screen
         w.x += w.dir * w.speed * dt;
         if (w.dir > 0 && w.x > g.walkX + WALK_W / 2) {            // back at the avenue
-          w.axis = "v";
+          w.axis = "v"; w.key = null;
           w.off = w.offT = rnd(3, WALK_W - 3);
           w.dir = Math.random() < .5 ? 1 : -1;
         } else if (w.dir < 0 && w.x < 6) w.dir = 1;
@@ -1429,15 +1477,15 @@
   function control(st, b, g) {
     if (st.occ) {
       const c = st.occ.car;
-      const clear = st.occ.side === "av" ? c.y > b.roadBot + 4
-                                         : c.x > g.walkX + ROAD_W + 4;
+      // clear means past the far crossing, not merely out of the carriageway
+      const clear = st.occ.side === "av" ? c.y > b.bot + 2 : c.x > g.edge + 2;
       const gone = st.occ.side === "av" ? !avCars.includes(c) : !st.cars.includes(c);
       if (clear || gone) st.occ = null; else return;
     }
     let best = null;
     const consider = (car, t, side) => { if (!best || t < best.t) best = { t, side, car }; };
     for (const c of avCars) {
-      if (Math.abs((c.y + c.spec.len) - (b.roadTop - 3)) > 2) continue;
+      if (Math.abs((c.y + c.spec.len) - (b.top - 2)) > 2) continue;
       c.waits = c.waits || {};
       if (c.waits[b.key] == null) c.waits[b.key] = clock;
       if (clock - c.waits[b.key] >= STOP_DWELL) consider(c, c.waits[b.key], "av");
@@ -1460,7 +1508,7 @@
             let best = Infinity;
             for (const b of boxes) {
               const st = b.st;
-              const line = b.roadTop - 3;
+              const line = b.top - 2;          // behind the crossing, not on it
               if (c.y + c.spec.len > line + 1) continue;   // already at or in the box
               if (st.occ && st.occ.car === c) continue;    // it is this car's turn
               best = Math.min(best, line);
@@ -1560,7 +1608,7 @@
     const S = SCENE[sceneKind], W = innerWidth, H = innerHeight;
 
     if (sceneMode === "clouds") {
-      cx.fillStyle = S.cloud; cx.fillRect(0, 0, W, H);
+      cx.fillStyle = S.map.back; cx.fillRect(0, 0, W, H);
       drawMapGlow(S);
       return;
     }
@@ -1587,13 +1635,20 @@
 
     // 3 — light, before any traffic, so no beam lands on a car
     if (S.night) {
-      for (let t = -TILE; t < H + TILE; t += TILE) {
+      for (let t = -TILE; t < H + TILE; t += TILE) {      // frontage on the avenue
         const base = t - off;
-        for (let k = 0; k < 6; k++) {
-          const y = R(base + k * 150 + 30);
-          if (boxes.some(b => y + 34 > b.top && y < b.top + CROSS_H)) continue;
-          beam(R(g.walkX), y, WALK_W, 34, S.gallery, "right", .5);
+        for (const L of avLights) {
+          const y = R(base + L.a), len = R(L.len);
+          if (y > H || y + len < 0) continue;
+          if (boxes.some(b => y + len > b.top && y < b.bot)) continue;
+          beam(R(g.walkX), y, WALK_W, len, S.gallery, "right", .5);
         }
+      }
+      for (const b of boxes) for (const L of b.st.lights) {  // and on the block
+        const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - x);
+        if (len <= 0) continue;
+        if (L.side) beam(x, R(b.roadBot), len, WALK_W, S.gallery, "up", .5);
+        else        beam(x, R(b.top), len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
         beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, 54, S.head, "down", .5);
@@ -1627,7 +1682,14 @@
       for (const c of st.cars) veh(laneY, c.x + c.spec.len, c.spec, c.color, S.glass, false);
     }
 
-    // 6 — people
+    // 6 — people. Someone on a block is held against their own street rather
+    // than against the screen, so they keep their pavement as the page scrolls
+    // under them. Done here, not in the step, so a frame drawn without one —
+    // a plain scroll — puts them in the right place too.
+    for (const w of peds) if (w.axis === "h") {
+      const b = boxes.find(x => x.key === w.key);
+      w.y = b ? (w.side ? b.roadBot : b.top) + w.off : -999;
+    }
     for (const p of peds) disc(p.x, p.y, p.r, p.color);
 
     // 7 — the crop. Past the kerb there is nothing, so a car or a headlight
@@ -1674,6 +1736,9 @@
   function sceneSetKind(kind, mode) {
     sceneMode = mode || "street";
     document.documentElement.setAttribute("data-mode", sceneMode);
+    // the basemap is recoloured out of this scene's own palette
+    for (const [k, v] of Object.entries(SCENE[kind].map))
+      rootStyle.setProperty("--map-" + k, v);
     if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
