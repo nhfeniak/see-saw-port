@@ -1158,6 +1158,7 @@
   // widest thing driving in them, which is why vehicles sat on each other.
   const PARK_W = 20, LANE_W = 22;
   const R = Math.round;              // everything lands on whole pixels
+  const PED_R = 4;                   // every person the same size
   const ROAD_W = PARK_W * 2 + LANE_W;
   const CROSS_H = WALK_W * 2 + ROAD_W;   // 116px: the fixed cross-street section
   const TILE = 900;
@@ -1174,9 +1175,9 @@
   const SCENE = {
     night: {
       cloud: "#2A2730", glow: [255, 214, 150], land: "#191519", landBlock: "#241C14",
-      void: "#0C0A0A", asphalt: "#221C16", avenue: "#1A1614",
+      void: "#0A0A0C", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
-      glass: "#0A0908", paint: "#6E6455",
+      glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
@@ -1185,9 +1186,9 @@
     },
     day: {
       cloud: "#EDEBE6", glow: null, land: "#DED8D3", landBlock: "#BFB8B2",
-      void: "#9C918C", asphalt: "#433E49", avenue: "#8C7F78",
+      void: "#8E8A8C", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
-      glass: "#16151A", paint: "#D8D3CB",
+      glass: "#16151A", paint: "#B6B2B0",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
       head: null, tail: null, gallery: null,
@@ -1258,13 +1259,13 @@
       const v = M(rnd(1.1, 1.6));
       walkers.push({ y: rnd(-40, H + 40), lane: (Math.random() * LANES) | 0, lx: 0,
                      dir: Math.random() < 0.5 ? 1 : -1, speed: v, base: v,
-                     r: rnd(3.0, 3.6), color: pick(S.coats), hold: 0 });
+                     r: PED_R, color: pick(S.coats), hold: 0 });
     }
     if (S.night) for (let k = 0; k < 4; k++) {
       const y = rnd(0, H), lane = (Math.random() * LANES) | 0;
       for (let m = 0, n = 2 + ((Math.random() * 3) | 0); m < n; m++)
         walkers.push({ y: y + rnd(-9, 9), lane, lx: 0, dir: 0, speed: 0, base: 0,
-                       r: rnd(3.0, 3.6), color: pick(S.coats), hold: Infinity });
+                       r: PED_R, color: pick(S.coats), hold: Infinity });
     }
     walkers.forEach(w => { w.lx = laneX(g, w.lane); });
 
@@ -1276,7 +1277,7 @@
     fieldWalkers = [];
     for (let i = 0; i < S.density.fieldWalkers; i++)
       fieldWalkers.push({ x: rnd(0, g.fieldW), y: rnd(0, H), dir: Math.random() < 0.5 ? 1 : -1,
-                          speed: M(rnd(1.1, 1.6)), r: rnd(3.0, 3.6), color: pick(S.coats) });
+                          speed: M(rnd(1.1, 1.6)), r: PED_R, color: pick(S.coats) });
 
     cloudGaps = [];
     for (let i = 0; i < 6; i++)
@@ -1304,7 +1305,7 @@
       for (let i = 0; i < 7; i++)
         c.peds.push({ x: rnd(0, W), side: Math.random() < .5 ? 0 : 1, off: rnd(7, 27),
                       dir: Math.random() < .5 ? 1 : -1, speed: M(rnd(1.1, 1.6)),
-                      r: rnd(3.0, 3.6), color: pick(S.coats) });
+                      r: PED_R, color: pick(S.coats) });
       crossStreets.set(key, c);
     }
     return c;
@@ -1338,15 +1339,31 @@
 
   // Where every visible cross street crosses the avenue. Both directions read
   // the same list, which is what lets them take turns at the box.
+  // The gap is a hole in the roofs, and the roofs travel at 1.0 while the
+  // ground travels at PARALLAX. Drawing the cross street at the hole's own
+  // position therefore pinned it to the roofs, and it slid against the avenue
+  // — the two halves of one ground plane moving at different rates. Shifting
+  // it by the difference puts it back on the ground with the avenue. Clamped,
+  // so a street can never walk far enough to leave its own gap.
   function intersections() {
     const out = [];
     for (const el of document.querySelectorAll(".date-head")) {
       const r = el.getBoundingClientRect();
-      if (r.bottom < -40 || r.top > innerHeight + 40) continue;
-      out.push({ el, key: el.textContent.trim(), top: r.top, roadTop: r.top + WALK_W,
-                 roadBot: r.top + WALK_W + ROAD_W, bot: r.top + CROSS_H });
+      if (r.bottom < -160 || r.top > innerHeight + 160) continue;
+      const shift = Math.max(-40, Math.min(40, -(1 - PARALLAX) * r.top));
+      const top = r.top + shift;
+      out.push({ el, key: el.textContent.trim(), shift, top,
+                 roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
     }
     return out;
+  }
+
+  // the heading rides with its street, not with the roof it sits in
+  function lockHeadings(boxes) {
+    for (const b of boxes) {
+      const span = b.el.firstElementChild;
+      if (span) span.style.transform = "translateY(" + b.shift.toFixed(1) + "px)";
+    }
   }
 
   const GAP_M = M(1.4);   // 1.4 m of daylight between bumpers
@@ -1425,6 +1442,44 @@
     }
   }
 
+  // People turn at the corner instead of walking on through the junction.
+  // The avenue's list and each cross street's list hand walkers back and
+  // forth, so it is one population on one pavement network rather than two
+  // sets of people that happen to look alike.
+  function turnPeds(dt, g, S) {
+    const boxes = intersections();
+    if (!boxes.length) return;
+
+    if (walkers.length > 14) for (let i = walkers.length - 1; i >= 0; i--) {
+      const w = walkers[i];
+      if (w.hold === Infinity) continue;
+      for (const b of boxes) {
+        if (w.y < b.roadTop - 2 || w.y > b.roadBot + 2) continue;
+        if (Math.random() > 1.1 * dt) continue;          // most carry straight on
+        const st = crossFor(b.key, S, g.fieldW);
+        st.peds.push({ x: g.walkX - 8, side: Math.random() < .5 ? 0 : 1,
+                       off: rnd(7, WALK_W - 7), dir: -1, speed: w.speed,
+                       r: PED_R, color: w.color });
+        walkers.splice(i, 1);
+        break;
+      }
+    }
+
+    for (const b of boxes) {
+      const st = crossStreets.get(b.key);
+      if (!st) continue;
+      for (let i = st.peds.length - 1; i >= 0; i--) {
+        const p = st.peds[i];
+        if (p.dir < 0 || p.x < g.walkX - 10) continue;   // reached the corner
+        const lane = (Math.random() * LANES) | 0;
+        walkers.push({ y: b.top + (p.side ? CROSS_H - 10 : 10), lane, lx: laneX(g, lane),
+                       dir: Math.random() < .5 ? 1 : -1, speed: p.speed, base: p.speed,
+                       r: PED_R, color: p.color, hold: 0 });
+        st.peds.splice(i, 1);
+      }
+    }
+  }
+
   function stepCross(dt, g, W) {
     for (const b of intersections()) {
       const st = crossFor(b.key, SCENE[sceneKind], g.fieldW);
@@ -1436,8 +1491,7 @@
       for (const c of st.cars) if (c.x > g.fieldW + 60) c.x = -220 - Math.random() * 160;
       for (const p of st.peds) {
         p.x += p.dir * p.speed * dt;
-        if (p.x < -30) p.x = g.fieldW + 30;
-        if (p.x > g.fieldW + 30) p.x = -30;
+        if (p.x < -30) p.x = g.walkX - 12;     // back in at the corner
       }
     }
   }
@@ -1480,33 +1534,42 @@
   // less of it, which is what reads as depth.
   function drawCross(g, b, S) {
     const st = crossFor(b.key, S, g.fieldW);
-    const w = R(g.walkX);                          // stops at the building line
-    cx.save();
-    cx.beginPath(); cx.rect(0, R(b.top), w, CROSS_H); cx.clip();
+    const bl = R(g.walkX);                         // the building line
+    const thru = R(g.roadX) + ROAD_W;              // far kerb of the avenue
+    const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
 
-    cx.fillStyle = S.avenue; cx.fillRect(0, R(b.top), w, CROSS_H);
+    // the carriageway runs all the way through the junction, so traffic does
+    // not disappear behind the corner
+    cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
+
+    cx.save();                                     // pavements stop at the corner
+    cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
     for (const s of slabs) {
       cx.fillStyle = s.c;
       const sx = R(s.y - 40), sw = R(s.h) + 1;
-      cx.fillRect(sx, R(b.top), sw, WALK_W);
-      cx.fillRect(sx, R(b.top) + WALK_W + ROAD_W, sw, WALK_W);
+      cx.fillRect(sx, top, sw, WALK_W);
+      cx.fillRect(sx, roadBot, sw, WALK_W);
+    }
+    cx.restore();
+
+    cx.save();
+    cx.beginPath(); cx.rect(0, top, thru, CROSS_H); cx.clip();
+
+    // paint goes down before anything drives over it
+    cx.fillStyle = S.paint;
+    for (let i = 0; i < 5; i++) {
+      const y = roadTop + 3 + i * 12;
+      if (y + 7 < roadBot) cx.fillRect(bl - 24, y, 20, 7);
     }
 
-    const laneY = R(b.roadTop) + PARK_W;
-    for (const p of st.parkT) vehH(R(b.roadTop), R(p.x + p.spec.len), p.spec, p.color, S.glass);
-    for (const p of st.parkB) vehH(R(b.roadBot) - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
+    const laneY = roadTop + PARK_W;
+    for (const p of st.parkT) vehH(roadTop, R(p.x + p.spec.len), p.spec, p.color, S.glass);
+    for (const p of st.parkB) vehH(roadBot - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
     if (S.night) for (const c of st.cars) {
       beam(R(c.x + c.spec.len), laneY, 46, R(c.spec.wide), S.head, "right", .5);
       beam(R(c.x) - 26, laneY, 26, R(c.spec.wide), S.tail, "left", .32);
     }
     for (const c of st.cars) vehH(laneY, R(c.x + c.spec.len), c.spec, c.color, S.glass);
-
-    // crossing at the junction: bars across the cross street's carriageway
-    cx.fillStyle = S.paint;
-    for (let i = 0; i < 5; i++) {
-      const y = R(b.roadTop) + 3 + i * 12;
-      if (y + 7 < R(b.roadBot)) cx.fillRect(w - 26, y, 20, 7);
-    }
     for (const p of st.peds)
       disc(R(p.x), R(p.side ? b.roadBot + p.off - 4 : b.top + p.off), p.r, p.color);
     cx.restore();
@@ -1517,12 +1580,6 @@
 
     if (sceneMode === "clouds") {
       cx.fillStyle = S.cloud; cx.fillRect(0, 0, W, H);
-      for (const q of cloudGaps) {                 // holes showing the city below
-        cx.fillStyle = S.land; cx.fillRect(q.x, q.y, q.w, q.h);
-        cx.fillStyle = S.landBlock;
-        for (const [bx, by, bw, bh] of q.blocks)
-          cx.fillRect(q.x + bx * q.w * .6, q.y + by * q.h * .6, q.w * bw, q.h * bh);
-      }
       drawMapGlow(S);   // the opening is the brightest thing up here
       return;
     }
@@ -1556,17 +1613,14 @@
           beam(R(g.walkX), y, WALK_W, 34, S.gallery, "right", .5);
         }
       }
-      for (const c of avCars) {
-        beam(R(g.lane), R(c.y + c.spec.len), LANE_W, 54, S.head, "down", .5);
-        beam(R(g.lane), R(c.y) - 30, LANE_W, 30, S.tail, "up", .38);
+      for (const c of avCars) {                    // exactly the car's own width
+        const cw = R(c.spec.wide);
+        beam(R(g.lane), R(c.y + c.spec.len), cw, 54, S.head, "down", .5);
+        beam(R(g.lane), R(c.y) - 30, cw, 30, S.tail, "up", .38);
       }
     }
 
-    for (const p of avParkA) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
-    for (const p of avParkB) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
-    for (const c of avCars) vehV(R(g.lane), R(c.y + c.spec.len), c.spec, c.color, S.glass);
-    // crossing bars over the avenue at each junction
-    cx.fillStyle = S.paint;
+    cx.fillStyle = S.paint;                        // paint first, then traffic
     for (const b of boxes) for (let i = 0; i < 5; i++) {
       const x = R(g.roadX) + 3 + i * 12;
       if (x + 7 < R(g.roadX) + ROAD_W) {
@@ -1574,6 +1628,9 @@
         cx.fillRect(x, R(b.roadBot) + 6, 7, 20);
       }
     }
+    for (const p of avParkA) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
+    for (const p of avParkB) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
+    for (const c of avCars) vehV(R(g.lane), R(c.y + c.spec.len), c.spec, c.color, S.glass);
 
     for (const b of boxes) drawCross(g, b, S);
     for (const f of fieldWalkers) disc(f.x, f.y, f.r, f.color);
@@ -1599,6 +1656,7 @@
         stepWalkers(dt, g, H);
         stepAvenue(dt, g, H);
         stepCross(dt, g, W);
+        turnPeds(dt, g, SCENE[sceneKind]);
       } else {
         for (const q of cloudGaps) {
           q.x += q.vx * dt; q.y += q.vy * dt;
@@ -1608,6 +1666,7 @@
       }
     }
     lastPar = par;
+    if (sceneMode === "street") lockHeadings(intersections());
     draw(par);
   }
 
@@ -1635,7 +1694,12 @@
     addEventListener("resize", () => { sizeCanvas(); populate(); }, { passive: true });
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
-      if (performance.now() - lastT > 120) draw(scrollY * PARALLAX)
+      if (performance.now() - lastT > 120) {
+        // re-lock here too: this path runs precisely when frames are not, and
+        // without it the headings stay pinned to the roofs
+        if (sceneMode === "street") lockHeadings(intersections());
+        draw(scrollY * PARALLAX);
+      }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
   }
