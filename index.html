@@ -1199,7 +1199,7 @@
 
   let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
   let walkers = [], avCars = [], avParkA = [], avParkB = [], fieldWalkers = [], slabs = [];
-  let cloudGaps = [], crossStreets = new Map();
+  let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -1279,11 +1279,6 @@
       fieldWalkers.push({ x: rnd(0, g.fieldW), y: rnd(0, H), dir: Math.random() < 0.5 ? 1 : -1,
                           speed: M(rnd(1.1, 1.6)), r: PED_R, color: pick(S.coats) });
 
-    cloudGaps = [];
-    for (let i = 0; i < 6; i++)
-      cloudGaps.push({ x: rnd(-120, innerWidth), y: rnd(-60, innerHeight), w: rnd(70, 200),
-                       h: rnd(30, 80), vx: rnd(-3, 3), vy: rnd(-1.5, 1.5),
-                       blocks: Array.from({ length: 3 }, () => [Math.random(), Math.random(), rnd(.2, .45), rnd(.2, .5)]) });
     crossStreets.clear();
     buildSlabs(S);
   }
@@ -1657,12 +1652,6 @@
         stepAvenue(dt, g, H);
         stepCross(dt, g, W);
         turnPeds(dt, g, SCENE[sceneKind]);
-      } else {
-        for (const q of cloudGaps) {
-          q.x += q.vx * dt; q.y += q.vy * dt;
-          if (q.x > W + 140) q.x = -240; if (q.x < -240) q.x = W + 140;
-          if (q.y > H + 100) q.y = -100; if (q.y < -100) q.y = H + 100;
-        }
       }
     }
     lastPar = par;
