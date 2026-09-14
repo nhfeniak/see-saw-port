@@ -334,17 +334,17 @@
     justify-content: center;
   }
 
+  /* A dot is a person on the pavement seen from much higher up, so it is
+     drawn the size of one. The 30px anchor around it stays: that is the thing
+     you have to hit with a thumb. */
   .dot::after {
     content: "";
     box-sizing: border-box;
-    width: 15px;
-    height: 15px;
+    width: var(--ped-d, 8px);
+    height: var(--ped-d, 8px);
     border-radius: 50%;
-    background: var(--dot-face);
+    background: var(--dot-face, #000);
   }
-
-  :root[data-scene="night"] { --dot-face: #F0EDE6; }
-  :root[data-scene="day"]   { --dot-face: #000000; }
 
   /* bookmarked reads yellow on the map, as before */
   .dot.on::after { background: var(--bookmark); }
@@ -964,7 +964,7 @@
       const label = dot.nextElementSibling;
       if (label && label.classList.contains("dot-label")) {
         label.style.left = x + "px";
-        label.style.top = (y + 9) + "px";
+        label.style.top = (y + PED_R + 3) + "px";
       }
     }
     // labels always show — no crowding/collision hiding
@@ -1245,6 +1245,7 @@
   rootStyle.setProperty("--gutter", GUTTER + "px");
   rootStyle.setProperty("--cross-h", CROSS_H + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
+  rootStyle.setProperty("--ped-d", PED_R * 2 + "px");
 
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
@@ -1892,6 +1893,9 @@
     rootStyle.setProperty("--map-line2", lamp(.28));
     rootStyle.setProperty("--map-line3", lamp(.50));
     rootStyle.setProperty("--map-lit", lamp(.68));
+    // An unmarked dot is the fifth car in the list below — the red one by day,
+    // and at night the colour everything up here is written in.
+    rootStyle.setProperty("--dot-face", S2.night ? INK_LIGHT : S2.cars[4]);
     if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
