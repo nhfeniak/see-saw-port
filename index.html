@@ -19,15 +19,8 @@
      ------------------------------------------------------------------ */
 
   :root[data-scene="day"] {
-    --void:        #9C918C;   /* open ground, sunlit */
-    --asphalt:     #8C7F78;   /* avenue, in sun */
-    --asphalt-sh:  #4A4550;   /* between buildings — they shade their own gap */
-    --walk:        #A89C96;   /* sidewalk concrete */
-    --curb:        #B6ADA6;
-    --paint:       #E4E0DA;   /* lane paint */
-    --paint-y:     #D2A93C;
+    --void:        #9C918C;   /* open ground, sunlit */   /* avenue, in sun */   /* between buildings — they shade their own gap */   /* sidewalk concrete */   /* lane paint */
     --ink:         #141319;
-    --paint-ink:   #E4E0DA;
     --head-ink:    #141319;   /* dark: the heading sits on sunlit asphalt */
     --chrome:      #E8E7E7;   /* same stock as a white-membrane roof */
     --chrome2:     #D2CFCA;
@@ -35,21 +28,13 @@
     --plate-ink:   #141319;
     --chrome-ink:  #141319;
     --mark:        #E8B830;   /* the yellow of a cab */
-    --line:        #141319;
     --bookmark:    #FFD91A;
     --location:    #1E5FD8;
   }
 
   :root[data-scene="night"] {
-    --void:        #0C0A0A;
-    --asphalt:     #3B2C1E;   /* under a lamp */
-    --asphalt-sh:  #221C16;   /* the gaps, away from the lamps */
-    --walk:        #5E4A32;
-    --curb:        #6B5842;
-    --paint:       #BFB8A6;
-    --paint-y:     #C9A13A;
+    --void:        #0C0A0A;   /* under a lamp */   /* the gaps, away from the lamps */
     --ink:         #F0EDE6;
-    --paint-ink:   #D9C28C;
     --head-ink:    #D9C28C;
     --chrome:      #26232B;   /* same stock as the palest night roof */
     --chrome2:     #35313C;
@@ -57,7 +42,6 @@
     --plate-ink:   #F0EDE6;
     --chrome-ink:  #F0EDE6;
     --mark:        #E8B830;
-    --line:        #F0EDE6;
     --bookmark:    #FFD91A;
     --location:    #1E5FD8;
   }
@@ -335,8 +319,8 @@
     background: var(--dot-face);
   }
 
-  :root[data-scene="night"] { --dot-face: #F0EDE6; --dot-edge: #F0EDE6; }
-  :root[data-scene="day"]   { --dot-face: #000000; --dot-edge: #000000; }
+  :root[data-scene="night"] { --dot-face: #F0EDE6; }
+  :root[data-scene="day"]   { --dot-face: #000000; }
 
   /* bookmarked reads yellow on the map, as before */
   .dot.on::after { background: var(--bookmark); }
@@ -1174,7 +1158,6 @@
   const M = (m) => m * PX_PER_M;
   const ROOF_H_M = 20, CAM_H_M = 220;
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
-  const FACADE_RATIO = ROOF_H_M / (CAM_H_M - ROOF_H_M);
 
   // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either
   // side of an 11 ft lane, 52 ft building line to building line.
@@ -1193,19 +1176,21 @@
 
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
-  const CAR_W = 18;                  // 2.1 m
+  const CAR_W = 18;                  // 2.1 m, every vehicle
+  // len, then the glass as fractions of it: bonnet before the windscreen,
+  // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
-    { kind: "sedan", len: M(4.6), wide: CAR_W, hood: .26, glass: .13, rear: .72, rearH: .10 },
-    { kind: "sedan", len: M(4.4), wide: CAR_W, hood: .25, glass: .13, rear: .71, rearH: .10 },
-    { kind: "suv",   len: M(4.9), wide: CAR_W, hood: .22, glass: .14, rear: .78, rearH: .12 },
-    { kind: "van",   len: M(5.4), wide: CAR_W, hood: .14, glass: .13, rear: .86, rearH: .08 },
-    { kind: "truck", len: M(7.0), wide: CAR_W, hood: .10, glass: .09, rear: 0,  rearH: 0, body: .24 },
+    { len: M(4.6), hood: .26, glass: .13, rear: .72, rearH: .10 },
+    { len: M(4.4), hood: .25, glass: .13, rear: .71, rearH: .10 },
+    { len: M(4.9), hood: .22, glass: .14, rear: .78, rearH: .12 },
+    { len: M(5.4), hood: .14, glass: .13, rear: .86, rearH: .08 },
+    { len: M(7.0), hood: .10, glass: .09, rear: 0,   rearH: 0, body: .24 },
   ];
   const MIX = [0, 0, 0, 1, 1, 2, 2, 3, 4];
 
   const SCENE = {
     night: {
-      cloud: "#2A2730", glow: [255, 214, 150], land: "#191519", landBlock: "#241C14",
+      cloud: "#2A2730", glow: [255, 214, 150],
       void: "#0A0A0C", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
       glass: "#0A0908", paint: "#6B6863",
@@ -1216,7 +1201,7 @@
       night: true,
     },
     day: {
-      cloud: "#EDEBE6", glow: null, land: "#DED8D3", landBlock: "#BFB8B2",
+      cloud: "#EDEBE6", glow: null,
       void: "#8E8A8C", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
       glass: "#16151A", paint: "#DDDCDC",
@@ -1378,16 +1363,16 @@
     }
   }
 
-  // Where every visible cross street crosses the avenue. Both directions read
-  // the same list, which is what lets them take turns at the box.
-  // The gap is a hole in the roofs, and the roofs travel at 1.0 while the
-  // ground travels at PARALLAX. Drawing the cross street at the hole's own
-  // position therefore pinned it to the roofs, and it slid against the avenue
-  // — the two halves of one ground plane moving at different rates. Shifting
-  // it by the difference puts it back on the ground with the avenue. Clamped,
-  // so a street can never walk far enough to leave its own gap.
+  // Every cross street currently on screen. The gap is a hole in the roofs,
+  // which travel at 1.0, while the ground travels at PARALLAX — so drawing a
+  // cross street at its hole's own position pinned it to the roofs and slid it
+  // against the avenue. Shifting by the difference puts it back on the ground.
+  //
+  // Rebuilt once a frame and passed around. It used to be recomputed by each
+  // of the five things that needed it, which meant five passes over the DOM
+  // and — worse — no guarantee they all saw the same numbers.
   function intersections() {
-    const out = [];
+    const out = [], S = SCENE[sceneKind], W = geom().fieldW;
     for (const el of document.querySelectorAll(".date-head")) {
       const r = el.getBoundingClientRect();
       if (r.bottom < -160 || r.top > innerHeight + 160) continue;
@@ -1398,7 +1383,8 @@
       // made the gap stop widening and start dragging the street with it.
       const shift = -(1 - PARALLAX) * (r.top - innerHeight / 2);
       const top = r.top + shift;
-      out.push({ el, key: el.textContent.trim(), shift, top,
+      const key = el.textContent.trim();
+      out.push({ el, key, shift, top, st: crossFor(key, S, W),
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
     }
     return out;
@@ -1422,16 +1408,16 @@
   // A queue on a one-way street: nobody may pass through the car in front, and
   // nobody may enter a junction that is not theirs. Positions are clamped
   // outright rather than nudged by braking, so an overlap is not possible.
-  function queue(list, getPos, setPos, lenOf, stopLine) {
-    list.sort((a, b) => getPos(b) - getPos(a));       // leader first
+  function queue(list, axis, stopLine) {
+    const front = (c) => c[axis] + c.spec.len;
+    list.sort((a, b) => front(b) - front(a));         // leader first
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
-      let cap = stopLine ? stopLine(c) : Infinity;    // a red light ahead
-      if (i > 0) {
-        const lead = list[i - 1];
-        cap = Math.min(cap, getPos(lead) - lenOf(lead) - gapFor(c));
-      }
-      if (getPos(c) > cap) { setPos(c, cap); c.stopped = true; } else c.stopped = false;
+      let cap = stopLine ? stopLine(c) : Infinity;
+      // the car in front's tail is simply its own coordinate
+      if (i > 0) cap = Math.min(cap, list[i - 1][axis] - gapFor(c));
+      if (front(c) > cap) { c[axis] = cap - c.spec.len; c.stopped = true; }
+      else c.stopped = false;
     }
   }
 
@@ -1467,17 +1453,13 @@
     }
   }
 
-  function stepAvenue(dt, g, H) {
-    const boxes = intersections();
-    for (const b of boxes) control(crossFor(b.key, SCENE[sceneKind], g.fieldW), b, g);
+  function stepAvenue(dt, g, H, boxes) {
+    for (const b of boxes) control(b.st, b, g);
     for (const c of avCars) c.y += c.speed * dt;
-    queue(avCars, c => c.y + c.spec.len, (c, v) => { c.y = v - c.spec.len; },
-          c => c.spec.len,
-          (c) => {
+    queue(avCars, "y", (c) => {
             let best = Infinity;
             for (const b of boxes) {
-              const st = crossStreets.get(b.key);
-              if (!st) continue;
+              const st = b.st;
               const line = b.roadTop - 3;
               if (c.y + c.spec.len > line + 1) continue;   // already at or in the box
               if (st.occ && st.occ.car === c) continue;    // it is this car's turn
@@ -1489,14 +1471,12 @@
   }
 
 
-  function stepCross(dt, g, W) {
-    for (const b of intersections()) {
-      const st = crossFor(b.key, SCENE[sceneKind], g.fieldW);
+  function stepCross(dt, g, boxes) {
+    for (const b of boxes) {
+      const st = b.st;
       for (const c of st.cars) c.x += c.speed * dt;
-      queue(st.cars, c => c.x + c.spec.len, (c, v) => { c.x = v - c.spec.len; },
-            c => c.spec.len,
-            (c) => (st.occ && st.occ.car === c) || (c.x + c.spec.len > g.walkX - 3)
-                     ? Infinity : g.walkX - 4);
+      queue(st.cars, "x", (c) => (st.occ && st.occ.car === c) || (c.x + c.spec.len > g.walkX - 3)
+                                   ? Infinity : g.walkX - 4);
       for (const c of st.cars) if (c.x > g.fieldW + 60) c.x = -220 - Math.random() * 160;
     }
   }
@@ -1515,33 +1495,24 @@
     cx.fillStyle = G; cx.fillRect(x, y, w, h);
   }
 
-  function vehV(x, yFront, sp, colour, glass) {
-    const y = yFront - sp.len;
-    cx.fillStyle = colour; cx.fillRect(x, y, sp.wide, sp.len);
-    if (sp.body) { cx.fillStyle = SCENE[sceneKind].cars[2]; cx.fillRect(x, y, sp.wide, sp.len * (1 - sp.body)); }
+  // The two directions were the same routine with the axes swapped. One
+  // function, and a flag that decides which way the rectangle is laid down.
+  function veh(across, front, sp, colour, glass, down) {
+    const L = sp.len;
+    const box = (a, b) => down ? cx.fillRect(across, R(a), CAR_W, R(b))
+                               : cx.fillRect(R(a), across, R(b), CAR_W);
+    cx.fillStyle = colour; box(front - L, L);
+    if (sp.body) { cx.fillStyle = SCENE[sceneKind].cars[2]; box(front - L, L * (1 - sp.body)); }
     cx.fillStyle = glass;
-    cx.fillRect(x, yFront - sp.len * (sp.hood + sp.glass), sp.wide, sp.len * sp.glass);
-    if (sp.rear) cx.fillRect(x, yFront - sp.len * (sp.rear + sp.rearH), sp.wide, sp.len * sp.rearH);
+    box(front - L * (sp.hood + sp.glass), L * sp.glass);
+    if (sp.rear) box(front - L * (sp.rear + sp.rearH), L * sp.rearH);
   }
 
-  function vehH(y, xFront, sp, colour, glass) {
-    const x = xFront - sp.len;
-    cx.fillStyle = colour; cx.fillRect(x, y, sp.len, sp.wide);
-    if (sp.body) { cx.fillStyle = SCENE[sceneKind].cars[2]; cx.fillRect(x, y, sp.len * (1 - sp.body), sp.wide); }
-    cx.fillStyle = glass;
-    cx.fillRect(xFront - sp.len * (sp.hood + sp.glass), y, sp.len * sp.glass, sp.wide);
-    if (sp.rear) cx.fillRect(xFront - sp.len * (sp.rear + sp.rearH), y, sp.len * sp.rearH, sp.wide);
-  }
-
-  // A cross street is the same section as the avenue, at fixed offsets from the
-  // top of its band — pavement, parking, one lane, parking, pavement. Nothing
-  // about it moves with the perspective; the building simply overlaps more or
-  // less of it, which is what reads as depth.
-  // A junction is one piece of ground, so it is drawn in layers across both
-  // streets at once rather than each street painting over the other: all the
-  // surfaces, then all the paint, then all the parked cars, then everything
-  // moving. That is what stops the horizontal street burying the vertical
-  // traffic passing under it.
+  // A cross street is the same section as the avenue at fixed offsets from the
+  // top of its band: pavement, parking, lane, parking, pavement. A junction is
+  // one piece of ground, so it is drawn in layers across both streets at once
+  // rather than each street painting over the other — that is what stops the
+  // horizontal street burying the traffic passing under it.
   function drawCrossSurface(g, b, S) {
     const bl = R(g.walkX), thru = innerWidth;
     const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
@@ -1557,12 +1528,9 @@
     cx.restore();
   }
 
-  // Bar and gap the same width, with a gap at each end so the pattern never
-  // runs into the kerb: n bars and n+1 gaps across the carriageway, so the
-  // unit is span / (2n + 1). Four bars across 72 px comes out at exactly 8.
-  // bar and gap equal, a gap at each end: n bars and n+1 gaps across the
-  // carriageway, so the unit is span / (2n + 1). n is chosen to land the unit
-  // nearest 8px for whatever width is being crossed.
+  // Bar and gap the same width with a gap at each end, so the pattern never
+  // runs into the kerb: n bars and n+1 gaps means the unit is span / (2n + 1),
+  // with n chosen to land it nearest 8px for whatever is being crossed.
   function zebra(x, y, across, along, barsRunDown, colour) {
     const n = Math.max(2, Math.round((across / 8 - 1) / 2));
     const unit = across / (2 * n + 1);
@@ -1585,7 +1553,7 @@
     zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint);
   }
 
-  function draw(par) {
+  function draw(par, boxes) {
     const S = SCENE[sceneKind], W = innerWidth, H = innerHeight;
 
     if (sceneMode === "clouds") {
@@ -1594,7 +1562,7 @@
       return;
     }
 
-    const g = geom(), boxes = intersections();
+    const g = geom();
 
     // 1 — surfaces
     cx.fillStyle = S.void; cx.fillRect(0, 0, W, H);
@@ -1625,36 +1593,36 @@
         }
       }
       for (const c of avCars) {
-        const cw = R(c.spec.wide);
+        const cw = CAR_W;
         beam(R(g.lane), R(c.y + c.spec.len), cw, 54, S.head, "down", .5);
         beam(R(g.lane), R(c.y) - 30, cw, 30, S.tail, "up", .38);
       }
       for (const b of boxes) {
-        const st = crossStreets.get(b.key); if (!st) continue;
+        const st = b.st;
         const laneY = R(b.roadTop) + PARK_W;
         for (const c of st.cars) {
-          beam(R(c.x + c.spec.len), laneY, 46, R(c.spec.wide), S.head, "right", .5);
-          beam(R(c.x) - 26, laneY, 26, R(c.spec.wide), S.tail, "left", .32);
+          beam(R(c.x + c.spec.len), laneY, 46, CAR_W, S.head, "right", .5);
+          beam(R(c.x) - 26, laneY, 26, CAR_W, S.tail, "left", .32);
         }
       }
     }
 
     // 4 — parked. Nobody parks in a junction or on a crossing.
     const blockedV = (y, len) => boxes.some(b => y + len > b.top && y < b.bot);
-    for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
+    for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) veh(R(g.parkA), p.y + p.spec.len, p.spec, p.color, S.glass, true);
     for (const b of boxes) {
-      const st = crossStreets.get(b.key); if (!st) continue;
+      const st = b.st;
       const stop = g.walkX - 6;
-      for (const p of st.parkT) if (p.x + p.spec.len < stop) vehH(R(b.roadTop), R(p.x + p.spec.len), p.spec, p.color, S.glass);
-      for (const p of st.parkB) if (p.x + p.spec.len < stop) vehH(R(b.roadBot) - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
+      for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(R(b.roadTop), p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(R(b.roadBot) - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
     }
 
     // 5 — everything moving, both directions on the same layer
-    for (const c of avCars) vehV(R(g.lane), R(c.y + c.spec.len), c.spec, c.color, S.glass);
+    for (const c of avCars) veh(R(g.lane), c.y + c.spec.len, c.spec, c.color, S.glass, true);
     for (const b of boxes) {
-      const st = crossStreets.get(b.key); if (!st) continue;
+      const st = b.st;
       const laneY = R(b.roadTop) + PARK_W;
-      for (const c of st.cars) vehH(laneY, R(c.x + c.spec.len), c.spec, c.color, S.glass);
+      for (const c of st.cars) veh(laneY, c.x + c.spec.len, c.spec, c.color, S.glass, false);
     }
 
     // 6 — people
@@ -1666,8 +1634,9 @@
     const par = scrollY * PARALLAX;
     const dt = Math.min(.05, (t - lastT) / 1000) || .016;
     lastT = t; clock += dt;
+    const boxes = sceneMode === "street" ? intersections() : [];
     if (!reduceMotion) {
-      const g = geom(), H = innerHeight, W = innerWidth, dPar = par - lastPar;
+      const g = geom(), H = innerHeight, dPar = par - lastPar;
       if (sceneMode === "street") {
         for (const w of peds) w.y -= dPar;
         for (const c of avCars) c.y -= dPar;
@@ -1676,14 +1645,14 @@
           if (p.y < -200) p.y += H + 400;
           if (p.y > H + 200) p.y -= H + 400;
         }
-        stepWalkers(dt, g, H, intersections());
-        stepAvenue(dt, g, H);
-        stepCross(dt, g, W);
+        stepWalkers(dt, g, H, boxes);
+        stepAvenue(dt, g, H, boxes);
+        stepCross(dt, g, boxes);
       }
     }
     lastPar = par;
-    if (sceneMode === "street") lockHeadings(intersections());
-    draw(par);
+    lockHeadings(boxes);
+    draw(par, boxes);
   }
 
   function sizeCanvas() {
@@ -1721,8 +1690,9 @@
       if (performance.now() - lastT > 120) {
         // re-lock here too: this path runs precisely when frames are not, and
         // without it the headings stay pinned to the roofs
-        if (sceneMode === "street") lockHeadings(intersections());
-        draw(scrollY * PARALLAX);
+        const boxes = sceneMode === "street" ? intersections() : [];
+        lockHeadings(boxes);
+        draw(scrollY * PARALLAX, boxes);
       }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
@@ -1735,21 +1705,14 @@
   function drawMapGlow(S) {
     const wrap = document.getElementById("mapwrap");
     if (!wrap || !S.glow) return;
-    const r = wrap.getBoundingClientRect();
-    const D = 44, INSET = 0;   // up to the corners, never beyond them
-    const w = r.width - INSET * 2, hh = r.height - INSET * 2;
-    if (w > 0) {
-      beam(R(r.left + INSET), R(r.top - D), R(w), D, S.glow, "up", .5);
-      beam(R(r.left + INSET), R(r.bottom), R(w), D, S.glow, "down", .5);
-    }
-    if (hh > 0) {
-      beam(R(r.left - D), R(r.top + INSET), D, R(hh), S.glow, "left", .5);
-      beam(R(r.right), R(r.top + INSET), D, R(hh), S.glow, "right", .5);
-    }
+    const r = wrap.getBoundingClientRect(), D = 44;
+    beam(R(r.left), R(r.top - D), R(r.width), D, S.glow, "up", .5);
+    beam(R(r.left), R(r.bottom), R(r.width), D, S.glow, "down", .5);
+    beam(R(r.left - D), R(r.top), D, R(r.height), S.glow, "left", .5);
+    beam(R(r.right), R(r.top), D, R(r.height), S.glow, "right", .5);
   }
 
-  function cloudEdgeStart() {}
-  function cloudEdgeStop() {}
+
   function renderTopNav() {
     const nav = document.getElementById("topnav");
     nav.innerHTML = PAGES.map(p =>
@@ -1787,7 +1750,6 @@
           renderContent();
         });
       });
-      cloudEdgeStop();
     } else if (currentPage === "onview") {
       content.innerHTML = renderOnViewPage();
       content.querySelectorAll(".tabs a[data-nbhd]").forEach(a => {
@@ -1817,7 +1779,6 @@
       document.getElementById("locate")?.addEventListener("click", toggleLocation);
       if (locationOn) startLocationTimer();
       if (wrap) attachPinchHandlers(wrap);
-      cloudEdgeStart();
     }
 
     applyBookmarkStyles();
