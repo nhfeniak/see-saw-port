@@ -59,7 +59,7 @@
     font-family: Arial, Helvetica, sans-serif;
     font-size: 14px;
     line-height: 1.4;
-    padding: 12px 12px 12px 0;   /* roofs run right to the left edge */
+    padding: 0 12px 12px 0;   /* roofs run to the left edge, and to the top */
     max-width: 640px;
   }
 
@@ -87,8 +87,11 @@
     padding: 4px 11px;
   }
 
-  h1.site { font-size: 22px; font-weight: bold; padding: 10px 11px 0; }
-  .meta { padding-top: 9px; }
+  /* Every row of the box is 4px of padding top and bottom, so every gap
+     between two of them is the same 8px. The first and last row carry a
+     little more against the outside edge — and which row is last depends on
+     whether the page has subtabs, which only the script knows. */
+  h1.site { font-size: 22px; font-weight: bold; padding-top: 10px; }
 
   nav.top {
     display: flex;
@@ -96,7 +99,8 @@
     gap: 2px 14px;
   }
 
-  nav.top:last-of-type { padding-bottom: 10px; }
+  nav.top { padding-bottom: 10px; }
+  :root[data-subtabs] nav.top { padding-bottom: 4px; }
 
   nav.top a { text-decoration: underline; cursor: pointer; font-weight: bold; }
   nav.top a.active { text-decoration: none; }
@@ -1893,9 +1897,9 @@
     rootStyle.setProperty("--map-line2", lamp(.28));
     rootStyle.setProperty("--map-line3", lamp(.50));
     rootStyle.setProperty("--map-lit", lamp(.68));
-    // An unmarked dot is the fifth car in the list below — the red one by day,
-    // and at night the colour everything up here is written in.
-    rootStyle.setProperty("--dot-face", S2.night ? INK_LIGHT : S2.cars[4]);
+    // an unmarked dot: black by day, and at night the colour everything up
+    // here is written in
+    rootStyle.setProperty("--dot-face", S2.night ? INK_LIGHT : "#000000");
     if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
@@ -2008,6 +2012,8 @@
       if (wrap) attachPinchHandlers(wrap);
     }
 
+    // the nav is the bottom edge of the header box unless subtabs follow it
+    document.documentElement.toggleAttribute("data-subtabs", !!content.querySelector(".tabs"));
     applyBookmarkStyles();
     saveView();
   }
