@@ -131,11 +131,11 @@
   .date-head {
     position: relative;
     box-sizing: border-box;
-    min-height: 82px;
+    min-height: 140px;      /* ~16 m building line to building line */
     display: flex;
     align-items: center;
     margin: 0;
-    padding: 26px 11px;
+    padding: 34px 11px;
     background: none;
     color: var(--paint-ink);
     font-weight: bold;
@@ -147,7 +147,7 @@
     content: "";
     position: absolute;
     left: 0;
-    right: 0;
+    right: 64px;            /* stops at the building line, not out in the road */
     background: var(--facade);
   }
 
@@ -164,6 +164,12 @@
 
   .entries { display: block; }
   .maplist { margin-top: 0; }
+
+  /* under the map there is no city to stand on — the listings sit on cloud */
+  .maplist .entry-main {
+    background: none;
+    color: var(--plate-ink);
+  }
 
   /* ---- one building per listing ----------------------------------
      column 1 is the roof, column 2 is the pavement beside it where the
@@ -1148,52 +1154,68 @@
   // ==================================================================
   // The street, one floor below the listings.
   //
-  // Everything here is measured rather than eyeballed. Tribeca pavements
-  // run about 4 m and are drawn 34 px, which fixes the scale at 8.5 px/m;
-  // every size and speed below is a real quantity put through it.
+  // Scale is fixed by the pavement: Tribeca sidewalks run about 4 m and
+  // are drawn 34 px, so 8.5 px/m. Every size and speed below is a real
+  // quantity put through that.
   //
-  // The camera sits 220 m up (a low helicopter) over 20 m rooftops — six
-  // cast-iron storeys at 3.3 m. Image motion goes as 1/depth, so the
-  // street runs at (220-20)/220 = 0.909 of the roofs, and the wall you
-  // can see down a gap is 20/(220-20) = 0.1 x its distance from the
-  // centre of frame: nothing straight below you, 41 px at the edge of a
-  // phone screen. Those two numbers are the same fact, which is why the
-  // walls breathe as you scroll.
+  // The camera sits 220 m up over 20 m rooftops — six cast-iron storeys.
+  // Image motion goes as 1/depth, so the street runs at (220-20)/220 =
+  // 0.909 of the roofs, and the wall visible down a gap is 20/(220-20) =
+  // 0.1 x its distance from the centre of frame. Same fact twice, which
+  // is why the walls breathe as you scroll.
   //
-  // Rectangles and circles only. No gradients. No transparency.
+  // Rectangles and circles. Flat colour everywhere except light, which
+  // is the one thing that gets a gradient — always to transparent, and
+  // always painted under the traffic so a beam never lies on a car.
   // ==================================================================
 
   const PX_PER_M = 8.5;
-  const ROOF_H_M = 20;
-  const CAM_H_M = 220;
-  const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;      // 0.909
-  const FACADE_RATIO = ROOF_H_M / (CAM_H_M - ROOF_H_M); // 0.10
+  const M = (m) => m * PX_PER_M;
+  const ROOF_H_M = 20, CAM_H_M = 220;
+  const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
+  const FACADE_RATIO = ROOF_H_M / (CAM_H_M - ROOF_H_M);
   const GUTTER = 64;
-  const WALK_W = 34;      // 4 m of pavement
+  const WALK_W = 34;
   const TILE = 900;
+
+  // Real fleet proportions, measured from the roof down. A sedan is 4.6 m
+  // with about a quarter of that ahead of the windscreen; the earlier
+  // version put the glass at the very nose, which is what made the
+  // bonnets look stunted.
+  const VEHICLES = [
+    { kind: "sedan", len: M(4.6), wide: M(1.8), hood: 0.26, glass: 0.13, rear: 0.72, rearH: 0.10 },
+    { kind: "sedan", len: M(4.4), wide: M(1.75), hood: 0.25, glass: 0.13, rear: 0.71, rearH: 0.10 },
+    { kind: "suv",   len: M(4.9), wide: M(1.95), hood: 0.22, glass: 0.14, rear: 0.78, rearH: 0.12 },
+    { kind: "van",   len: M(5.4), wide: M(2.0), hood: 0.14, glass: 0.13, rear: 0.86, rearH: 0.08 },
+    { kind: "truck", len: M(7.0), wide: M(2.35), hood: 0.10, glass: 0.09, rear: 0, rearH: 0, body: 0.24 },
+  ];
+  const VEHICLE_MIX = [0, 0, 0, 1, 1, 2, 2, 3, 4];   // one box truck in nine
 
   const SCENE = {
     night: {
-      cloud: "#2A2730",
+      cloud: "#2A2730", cloudGap: "#1E1B24",
       void: "#0C0A0A", asphalt: "#221C16", avenue: "#1A1614",
-      walk: ["#4A3B2B", "#443628", "#503F2D", "#3E3124", "#544430"],
-      farBlock: "#1B1A20",
-      glass: "#0A0908",                                  // windscreens
-      wake: "#5A2C22",                                   // lit road behind a moving car
-      cars: ["#2A2724", "#1C1A18", "#3A3632", "#4A2F2A", "#22303A", "#5E4A22"],
+      walkWarm: ["#4A3B2B", "#54452F", "#42351F"], walkCool: ["#3E3830", "#464038", "#38332C"],
+      farBlock: "#1B1A20", glass: "#0A0908",
+      // black is the commonest car colour in New York, more so after dark
+      cars: ["#141312", "#141312", "#141312", "#1C1A18", "#2A2724", "#3A3632",
+             "#4A2F2A", "#22303A", "#5E4A22", "#6B6863"],
+      truckBody: "#6E6A64",
       coats: ["#141210", "#1C1714", "#241C16", "#0E0C0B", "#2A2018"],
+      head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
       density: { walkers: 30, cars: 7, parked: 11, fieldWalkers: 26 },
       night: true,
     },
     day: {
-      cloud: "#EDEBE6",
+      cloud: "#EDEBE6", cloudGap: "#B9B2AC",
       void: "#9C918C", asphalt: "#433E49", avenue: "#8C7F78",
-      walk: ["#A89C96", "#B0A49D", "#9E938D", "#B5A9A2", "#978C87"],
-      farBlock: "#B9B2AC",
-      glass: "#16151A",
-      wake: null,
-      cars: ["#DDDCDC", "#B6B2B0", "#3A3640", "#2B2833", "#8E3B34", "#E8B830"],
+      walkWarm: ["#A89C96", "#B0A49D", "#9E938D"], walkCool: ["#A3A0A0", "#ABA8A8", "#999697"],
+      farBlock: "#B9B2AC", glass: "#16151A",
+      cars: ["#232323", "#232323", "#232323", "#3A3640", "#DDDCDC", "#B6B2B0",
+             "#8E8A88", "#8E3B34", "#2C3A52", "#E8B830"],
+      truckBody: "#E4E2DE",
       coats: ["#141210", "#1C1714", "#241C16", "#0E0C0B", "#2A2018"],
+      head: null, tail: null, gallery: null,
       density: { walkers: 11, cars: 4, parked: 6, fieldWalkers: 9 },
       night: false,
     },
@@ -1201,37 +1223,55 @@
 
   let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
   let walkers = [], cars = [], parked = [], fieldWalkers = [], slabs = [];
-  let lastT = -1e9, lastPar = 0, rafId = null;
+  let xCars = [], xPeds = [], cloudGaps = [];
+  let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (a) => a[(Math.random() * a.length) | 0];
-  const mps = (v) => v * PX_PER_M;
+  const vehicle = () => VEHICLES[VEHICLE_MIX[(Math.random() * VEHICLE_MIX.length) | 0]];
 
   function geom() {
     const el = document.getElementById("content");
     const r = el ? el.getBoundingClientRect() : { right: Math.min(innerWidth, 640) - 12 };
     const walkX = r.right - GUTTER;
-    const roadX = walkX + WALK_W;                 // cars sit straight against the kerb
+    const roadX = walkX + WALK_W;
     const roadW = Math.min(Math.max(innerWidth - roadX, 26), 58);
     const farWalkX = roadX + roadW;
     return { walkX, walkW: WALK_W, roadX, roadW, fieldW: walkX,
-             farWalkX, farWalkW: 30, farBlockX: farWalkX + 30,
-             laneW: Math.min(16, roadW - 2) };
+             farWalkX, farWalkW: 30, farBlockX: farWalkX + 30 };
   }
 
-  // two files of people, which is what 4 m of pavement actually holds
   const LANES = 2;
   const laneX = (g, lane) => g.walkX + 9 + lane * (g.walkW - 18);
+
+  // Pavement is poured in slabs and patched piecemeal: long even runs, then a
+  // stretch where every panel has been cut out and replaced, and it drifts
+  // between warm and cool concrete rather than just light and dark.
+  function buildSlabs(S) {
+    slabs = [];
+    let y = 0, warm = Math.random() < 0.5;
+    while (y < TILE) {
+      const calm = Math.random() < 0.6;
+      const runEnd = y + (calm ? rnd(120, 300) : rnd(50, 120));
+      const steady = calm ? pick(warm ? S.walkWarm : S.walkCool) : null;
+      while (y < runEnd && y < TILE) {
+        const h = calm ? rnd(30, 80) : rnd(10, 26);
+        slabs.push({ y, h, c: steady || pick(Math.random() < 0.5 ? S.walkWarm : S.walkCool) });
+        y += h;
+      }
+      if (Math.random() < 0.35) warm = !warm;
+    }
+  }
 
   function populate() {
     const S = SCENE[sceneKind], g = geom(), H = innerHeight;
 
     walkers = [];
     for (let i = 0; i < S.density.walkers; i++) {
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      const v = mps(rnd(1.1, 1.6));               // 1.1-1.6 m/s, 2-4 mph
-      walkers.push({ y: rnd(-40, H + 40), lane: (Math.random() * LANES) | 0, lx: 0, dir,
-                     speed: v, base: v, r: rnd(3.0, 3.6), color: pick(S.coats), hold: 0 });
+      const v = M(rnd(1.1, 1.6));
+      walkers.push({ y: rnd(-40, H + 40), lane: (Math.random() * LANES) | 0, lx: 0,
+                     dir: Math.random() < 0.5 ? 1 : -1, speed: v, base: v,
+                     r: rnd(3.0, 3.6), color: pick(S.coats), hold: 0 });
     }
     if (S.night) {
       for (let k = 0; k < 4; k++) {
@@ -1243,29 +1283,38 @@
     }
     walkers.forEach(w => { w.lx = laneX(g, w.lane); });
 
-    cars = [];
-    for (let i = 0; i < S.density.cars; i++)
-      cars.push({ y: rnd(-140, H + 140), dir: 1, speed: mps(rnd(6.7, 9.4)),   // 15-21 mph
-                  len: rnd(32, 40), color: pick(S.cars), rear: Math.random() < 0.45 });
+    const mk = (y) => { const v = vehicle();
+      return { y, spec: v, speed: M(rnd(6.7, 9.4)), color: v.kind === "truck" ? S.truckBody : pick(S.cars) }; };
+    cars = []; for (let i = 0; i < S.density.cars; i++) cars.push(mk(rnd(-160, H + 160)));
     parked = [];
     let py = rnd(-60, 40);
     while (py < H + 60 && parked.length < S.density.parked) {
-      if (Math.random() < 0.72) parked.push({ y: py, len: rnd(32, 40), color: pick(S.cars),
-                                              rear: Math.random() < 0.45 });
-      py += rnd(74, 140);
+      if (Math.random() < 0.74) parked.push(mk(py));
+      py += rnd(70, 130);
     }
     fieldWalkers = [];
     for (let i = 0; i < S.density.fieldWalkers; i++)
       fieldWalkers.push({ x: rnd(0, g.fieldW), y: rnd(0, H), dir: Math.random() < 0.5 ? 1 : -1,
-                          speed: mps(rnd(1.1, 1.6)), r: rnd(3.0, 3.6), color: pick(S.coats) });
+                          speed: M(rnd(1.1, 1.6)), r: rnd(3.0, 3.6), color: pick(S.coats) });
 
-    // pavement is poured in slabs and patched piecemeal; it is never one flat tone
-    slabs = [];
-    for (let y = 0; y < TILE; ) {
-      const hgt = rnd(26, 70);
-      slabs.push({ y, h: hgt, c: pick(S.walk) });
-      y += hgt;
-    }
+    // traffic for the cross streets in the heading gaps
+    xCars = [];
+    for (let i = 0; i < 7; i++)
+      xCars.push({ x: rnd(-200, 900), spec: vehicle(), dir: Math.random() < 0.5 ? 1 : -1,
+                   speed: M(rnd(6.7, 9.4)), color: pick(S.cars), lane: (Math.random() * 2) | 0 });
+    xCars.forEach(c => { if (c.spec.kind === "truck") c.color = S.truckBody; });
+    xPeds = [];
+    for (let i = 0; i < 16; i++)
+      xPeds.push({ x: rnd(-40, 900), side: Math.random() < 0.5 ? 0 : 1, off: rnd(6, 26),
+                   dir: Math.random() < 0.5 ? 1 : -1, speed: M(rnd(1.1, 1.6)),
+                   r: rnd(3.0, 3.6), color: pick(S.coats) });
+
+    cloudGaps = [];
+    for (let i = 0; i < 7; i++)
+      cloudGaps.push({ x: rnd(-100, innerWidth), y: rnd(-60, innerHeight), w: rnd(60, 190),
+                       h: rnd(26, 70), vx: rnd(-3, 3), vy: rnd(-1.5, 1.5) });
+
+    buildSlabs(S);
   }
 
   function stepWalkers(dt, g, H) {
@@ -1275,63 +1324,153 @@
       for (const o of walkers) {
         if (o === w) continue;
         const dy = (o.y - w.y) * w.dir;
-        if (dy < 0 || dy > 60) continue;
-        if (Math.abs(o.lx - w.lx) > 8) continue;
-        if (o.dir === w.dir && o.hold !== Infinity) {
-          if (dy < 26) limit = Math.min(limit, o.speed * 0.92);
-        } else if (dy < 40) blocked = true;
+        if (dy < 0 || dy > 60 || Math.abs(o.lx - w.lx) > 8) continue;
+        if (o.dir === w.dir && o.hold !== Infinity) { if (dy < 26) limit = Math.min(limit, o.speed * 0.92); }
+        else if (dy < 40) blocked = true;
       }
       if (blocked) {
-        const t = w.lane === 0 ? 1 : 0;
-        const tx = laneX(g, t);
-        if (!walkers.some(o => o !== w && Math.abs(o.lx - tx) < 8 && Math.abs(o.y - w.y) < 24))
-          w.lane = t;
+        const t = w.lane === 0 ? 1 : 0, tx = laneX(g, t);
+        if (!walkers.some(o => o !== w && Math.abs(o.lx - tx) < 8 && Math.abs(o.y - w.y) < 24)) w.lane = t;
         limit = Math.min(limit, w.base * 0.45);
       }
       const tx = laneX(g, w.lane);
       w.lx += Math.max(-42 * dt, Math.min(42 * dt, tx - w.lx));
       w.speed += (limit - w.speed) * Math.min(1, dt * 3);
       w.y += w.dir * w.speed * dt;
-      if (w.y < -50) w.y = H + 50;
-      if (w.y > H + 50) w.y = -50;
+      if (w.y < -60) w.y = H + 60;
+      if (w.y > H + 60) w.y = -60;
     }
   }
 
-  function stepCars(dt, g, H) {
+  function stepTraffic(dt, g, H, W) {
     for (const c of cars) {
       let limit = c.speed;
       for (const o of cars) {
         if (o === c) continue;
         const dy = o.y - c.y;
-        if (dy > 0 && dy < c.len + 26) limit = Math.min(limit, o.speed * 0.9);
+        if (dy > 0 && dy < c.spec.len + 26) limit = Math.min(limit, o.speed * 0.9);
       }
       c.speed += (limit - c.speed) * Math.min(1, dt * 2);
       c.y += c.speed * dt;
-      if (c.y > H + 170) c.y = -170;
+      if (c.y > H + 200) c.y = -200;
     }
     for (const f of fieldWalkers) {
       f.x += f.dir * f.speed * dt;
       if (f.x < -10) f.x = g.fieldW + 10;
       if (f.x > g.fieldW + 10) f.x = -10;
     }
+    for (const c of xCars) {
+      c.x += c.dir * c.speed * dt;
+      if (c.x < -260) c.x = W + 160;
+      if (c.x > W + 260) c.x = -160;
+    }
+    for (const p of xPeds) {
+      p.x += p.dir * p.speed * dt;
+      if (p.x < -30) p.x = W + 30;
+      if (p.x > W + 30) p.x = -30;
+    }
+    for (const q of cloudGaps) {
+      q.x += q.vx * dt; q.y += q.vy * dt;
+      if (q.x > W + 120) q.x = -220;
+      if (q.x < -220) q.x = W + 120;
+      if (q.y > H + 90) q.y = -90;
+      if (q.y < -90) q.y = H + 90;
+    }
   }
 
   const disc = (x, y, r, c) => { cx.fillStyle = c; cx.beginPath(); cx.arc(x, y, r, 0, 6.2832); cx.fill(); };
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
-  function carBox(g, c, S, moving) {
-    const x = g.roadX + 1, w = g.laneW;
-    if (moving && S.wake) { cx.fillStyle = S.wake; cx.fillRect(x, c.y - 9, w, 9); }
-    cx.fillStyle = c.color; cx.fillRect(x, c.y, w, c.len);
-    cx.fillStyle = S.glass;
-    cx.fillRect(x, c.y + c.len - 8, w, 6);            // windscreen, full width
-    if (c.rear) cx.fillRect(x, c.y + 3, w, 5);        // and sometimes the back light
+  // Light is the one thing allowed a gradient, and it always runs out to
+  // nothing. Painted before any traffic so a beam never lands on a car.
+  function beam(x, y, w, h, colour, dir, strength) {
+    const g2 = dir === "down" ? cx.createLinearGradient(0, y, 0, y + h)
+             : dir === "up"   ? cx.createLinearGradient(0, y + h, 0, y)
+             : dir === "right"? cx.createLinearGradient(x, 0, x + w, 0)
+             :                  cx.createLinearGradient(x + w, 0, x, 0);
+    g2.addColorStop(0, rgba(colour, strength));
+    g2.addColorStop(1, rgba(colour, 0));
+    cx.fillStyle = g2;
+    cx.fillRect(x, y, w, h);
+  }
+
+  function drawVehicle(x, yFront, spec, colour, glass, vertical) {
+    const L = spec.len, Wd = spec.wide;
+    if (vertical) {
+      const y = yFront - L;
+      cx.fillStyle = colour; cx.fillRect(x, y, Wd, L);
+      if (spec.body) {                                   // box truck: cab, then cargo
+        cx.fillStyle = SCENE[sceneKind].truckBody;
+        cx.fillRect(x, y, Wd, L * (1 - spec.body));
+      }
+      cx.fillStyle = glass;
+      cx.fillRect(x, yFront - L * (spec.hood + spec.glass), Wd, L * spec.glass);
+      if (spec.rear) cx.fillRect(x, yFront - L * (spec.rear + spec.rearH), Wd, L * spec.rearH);
+    } else {
+      const xl = yFront - L;                             // yFront is the leading x here
+      cx.fillStyle = colour; cx.fillRect(xl, x, L, Wd);
+      if (spec.body) { cx.fillStyle = SCENE[sceneKind].truckBody; cx.fillRect(xl, x, L * (1 - spec.body), Wd); }
+      cx.fillStyle = glass;
+      cx.fillRect(yFront - L * (spec.hood + spec.glass), x, L * spec.glass, Wd);
+      if (spec.rear) cx.fillRect(yFront - L * (spec.rear + spec.rearH), x, L * spec.rearH, Wd);
+    }
+  }
+
+  // the cross streets you see down at each heading: full section, both
+  // pavements, traffic and people, with the heading painted in the roadway
+  function drawCrossStreets(g) {
+    const S = SCENE[sceneKind], SW = 26;   // 3 m pavements on a side street
+    for (const el of document.querySelectorAll(".date-head")) {
+      const r = el.getBoundingClientRect();
+      if (r.bottom < -40 || r.top > innerHeight + 40) continue;
+      const fTop = parseFloat(el.style.getPropertyValue("--fac-top")) || 0;
+      const fBot = parseFloat(el.style.getPropertyValue("--fac-bot")) || 0;
+      const top = r.top + fTop, bot = r.bottom - fBot;
+      if (bot - top < 24) continue;
+      const w = g.fieldW, phase = (Math.abs(Math.round(r.top / 7)) % 400);
+
+      cx.fillStyle = S.avenue; cx.fillRect(0, top, w, bot - top);
+      // broad panels, the same warm/cool drift as the avenue but at the
+      // scale you actually see looking along a street rather than across it
+      for (let i = 0, x = -((phase * 1.7) % 140); x < w; i++, x += 0) {
+        const pw = 60 + ((i * 53 + phase) % 90);
+        const warm = ((i * 7 + (phase | 0)) % 5) < 3;
+        cx.fillStyle = (warm ? S.walkWarm : S.walkCool)[(i * 3) % 3];
+        cx.fillRect(x, top, pw + 1, SW);
+        cx.fillStyle = (warm ? S.walkCool : S.walkWarm)[(i * 5) % 3];
+        cx.fillRect(x, bot - SW, pw + 1, SW);
+        x += pw;
+      }
+      const roadTop = top + SW, roadBot = bot - SW, roadH = roadBot - roadTop;
+      if (roadH > 16) {
+        const lanes = roadH > 34 ? 2 : 1;
+        const laneY = (c) => roadTop + (roadH / lanes) * (c.lane % lanes)
+                             + (roadH / lanes - c.spec.wide) / 2;
+        const carX = (c) => ((c.x + phase) % (w + 460)) - 230;
+        if (S.night) for (const c of xCars) {   // beams first, so none lands on a car
+          const x = carX(c), y = laneY(c), nose = c.dir > 0 ? x : x - c.spec.len;
+          beam(c.dir > 0 ? nose : nose - 52, y - 4, 52, c.spec.wide + 8, S.head,
+               c.dir > 0 ? "right" : "left", 0.45);
+          beam(c.dir > 0 ? nose - c.spec.len - 24 : nose + c.spec.len, y - 1, 24,
+               c.spec.wide + 2, S.tail, c.dir > 0 ? "left" : "right", 0.3);
+        }
+        for (const c of xCars)
+          drawVehicle(laneY(c), c.dir > 0 ? carX(c) : carX(c) + c.spec.len, c.spec, c.color, S.glass, false);
+      }
+      for (const p of xPeds) {
+        const x = (p.x + phase) % (w + 60) - 30;
+        disc(x, p.side ? bot - SW + p.off : top + p.off, p.r, p.color);
+      }
+    }
   }
 
   function draw(par) {
     const S = SCENE[sceneKind], W = innerWidth, H = innerHeight;
 
-    if (sceneMode === "clouds") {                      // map pages sit in cloud, not city
+    if (sceneMode === "clouds") {
       cx.fillStyle = S.cloud; cx.fillRect(0, 0, W, H);
+      cx.fillStyle = S.cloudGap;                          // city showing through
+      for (const q of cloudGaps) cx.fillRect(q.x, q.y, q.w, q.h);
       return;
     }
 
@@ -1343,25 +1482,35 @@
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
-      for (const s of slabs) {                         // blocky, uneven pavement
-        cx.fillStyle = s.c;
-        cx.fillRect(g.walkX, base + s.y, g.walkW, s.h + 1);
-      }
+      for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(g.walkX, base + s.y, g.walkW, s.h + 1); }
     }
 
     if (g.farBlockX < W) {
-      cx.fillStyle = S.walk[0]; cx.fillRect(g.farWalkX, 0, g.farWalkW, H);
+      cx.fillStyle = S.walkCool[0]; cx.fillRect(g.farWalkX, 0, g.farWalkW, H);
       cx.fillStyle = S.farBlock; cx.fillRect(g.farBlockX, 0, W - g.farBlockX, H);
     }
 
-    for (const p of parked) carBox(g, p, S, false);
-    for (const c of cars) carBox(g, c, S, true);
+    if (S.night) {
+      // galleries throwing cool white across the pavement — one every few
+      // buildings, which on an opening night is roughly right
+      for (let t = -TILE; t < H + TILE; t += TILE) {
+        const base = t - off;
+        for (let k = 0; k < 6; k++)
+          beam(g.walkX, base + k * 150 + 30, g.walkW + 10, 34, S.gallery, "right", 0.5);
+      }
+      for (const c of cars) {                             // beams under the traffic
+        beam(g.roadX, c.y + 2, c.spec.wide, 54, S.head, "down", 0.5);
+        beam(g.roadX, c.y - c.spec.len - 30, c.spec.wide, 30, S.tail, "up", 0.4);
+      }
+    }
+
+    for (const p of parked) drawVehicle(g.roadX, p.y, p.spec, p.color, S.glass, true);
+    for (const c of cars) drawVehicle(g.roadX, c.y, c.spec, c.color, S.glass, true);
+    drawCrossStreets(g);
     for (const f of fieldWalkers) disc(f.x, f.y, f.r, f.color);
     for (const w of walkers) disc(w.lx, w.y, w.r, w.color);
   }
 
-  // The walls in the heading gaps, sized by how far off-centre they are.
-  // Only the handful on screen are touched, so this is cheap on scroll.
   function updateFacades() {
     const mid = innerHeight / 2;
     for (const el of document.querySelectorAll(".date-head")) {
@@ -1369,7 +1518,6 @@
       if (r.bottom < -80 || r.top > innerHeight + 80) continue;
       const offset = (r.top + r.bottom) / 2 - mid;
       const wall = Math.min(r.height / 2 - 2, Math.abs(offset) * FACADE_RATIO);
-      // you see the far side of the gap: the wall above when the gap is above you
       el.style.setProperty("--fac-top", (offset < 0 ? wall : 0).toFixed(1) + "px");
       el.style.setProperty("--fac-bot", (offset > 0 ? wall : 0).toFixed(1) + "px");
     }
@@ -1379,23 +1527,25 @@
     rafId = requestAnimationFrame(frame);
     const par = scrollY * PARALLAX;
     const dt = Math.min(0.05, (t - lastT) / 1000) || 0.016;
-    lastT = t;
-    if (!reduceMotion && sceneMode === "street") {
-      const g = geom(), H = innerHeight, dPar = par - lastPar;
-      for (const w of walkers) w.y -= dPar;
-      for (const c of cars) c.y -= dPar;
-      for (const p of parked) {
-        p.y -= dPar;
-        if (p.y < -140) p.y += H + 280;
-        if (p.y > H + 140) p.y -= H + 280;
+    lastT = t; clock += dt;
+    if (!reduceMotion) {
+      const g = geom(), H = innerHeight, W = innerWidth, dPar = par - lastPar;
+      if (sceneMode === "street") {
+        for (const w of walkers) w.y -= dPar;
+        for (const c of cars) c.y -= dPar;
+        for (const p of parked) {
+          p.y -= dPar;
+          if (p.y < -160) p.y += H + 320;
+          if (p.y > H + 160) p.y -= H + 320;
+        }
+        for (const f of fieldWalkers) f.y -= dPar;
+        stepWalkers(dt, g, H);
       }
-      for (const f of fieldWalkers) f.y -= dPar;
-      stepWalkers(dt, g, H);
-      stepCars(dt, g, H);
+      stepTraffic(dt, g, H, W);
     }
     lastPar = par;
-    draw(par);
     updateFacades();
+    draw(par);
   }
 
   function sizeCanvas() {
@@ -1424,20 +1574,38 @@
     addEventListener("resize", () => { sizeCanvas(); populate(); }, { passive: true });
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
-      if (performance.now() - lastT > 120) { draw(scrollY * PARALLAX); updateFacades(); }
+      if (performance.now() - lastT > 120) { updateFacades(); draw(scrollY * PARALLAX); }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
   }
 
-  // ---- the map sits in a hole in the cloud -------------------------
-  // An opaque ragged edge painted over the map's border, drifting slowly.
-  // Rectangles only, so the hole has the same vocabulary as everything else.
-  let edgeCv = null, edgeCx = null, edgePhase = 0, edgeRaf = null;
+  // ---- cloud bank around the map ----------------------------------
+  // The cloud sits over the city, not over the screen: its blocks live in
+  // map coordinates, so panning and zooming carries them along. Only the
+  // ones that drift into the border band get drawn, which keeps the middle
+  // of the map clear. Blocks scale with the zoom, so far out you get a lot
+  // of small ones and close in a few big ones.
+  let edgeCv = null, edgeCx = null, edgeRaf = null, edgeBlocks = null;
+
+  const EDGE_REACH = 96;   // furthest any one block may poke inward
+
+  function buildEdgeBlocks() {
+    edgeBlocks = [];
+    for (let i = 0; i < 260; i++)
+      edgeBlocks.push({ mx: Math.random() * ARTBOARD_W, my: Math.random() * ARTBOARD_H,
+                        w: rnd(30, 96), h: rnd(24, 72),
+                        dx: rnd(-0.5, 0.5), dy: rnd(-0.35, 0.35),
+                        // squared, so most blocks sit right on the edge and only
+                        // a few reach in — that is what makes the bank ragged
+                        // rather than a band with a ruled inner line
+                        reach: EDGE_REACH * Math.pow(Math.random(), 2) });
+  }
 
   function cloudEdgeDraw() {
     const wrap = document.getElementById("mapwrap");
     if (!wrap || !edgeCv) return;
     const w = wrap.clientWidth, h = wrap.clientHeight;
+    if (!w || !h) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     if (edgeCv.width !== Math.round(w * dpr) || edgeCv.height !== Math.round(h * dpr)) {
       edgeCv.width = Math.round(w * dpr); edgeCv.height = Math.round(h * dpr);
@@ -1445,41 +1613,33 @@
       edgeCx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     edgeCx.clearRect(0, 0, w, h);
+    if (!edgeBlocks) buildEdgeBlocks();
+    const sc = mapScale || 1;
+    const size = Math.max(1, Math.sqrt(sc) * 1.6);       // coarser as you zoom in
     edgeCx.fillStyle = SCENE[sceneKind].cloud;
-    const STEP = 16, DEPTH = 26;
-    const lump = (i, seed) => (Math.sin(i * 0.9 + seed + edgePhase) +
-                               Math.sin(i * 0.37 + seed * 2 - edgePhase * 0.6)) * 0.25 + 0.5;
-    for (let x = 0; x < w; x += STEP) {
-      edgeCx.fillRect(x, 0, STEP + 1, 4 + lump(x / STEP, 0) * DEPTH);
-      const b = 4 + lump(x / STEP, 11) * DEPTH;
-      edgeCx.fillRect(x, h - b, STEP + 1, b);
-    }
-    for (let y = 0; y < h; y += STEP) {
-      edgeCx.fillRect(0, y, 4 + lump(y / STEP, 23) * DEPTH, STEP + 1);
-      const rgt = 4 + lump(y / STEP, 31) * DEPTH;
-      edgeCx.fillRect(w - rgt, y, rgt, STEP + 1);
+    for (const b of edgeBlocks) {
+      const x = b.mx * sc - wrap.scrollLeft + b.dx * clock * 6;
+      const y = b.my * sc - wrap.scrollTop + b.dy * clock * 6;
+      const bw = b.w * size, bh = b.h * size;
+      if (x + bw < -20 || x > w + 20 || y + bh < -20 || y > h + 20) continue;
+      // how far this block sits from the nearest edge of the frame; a block
+      // only survives if it is closer in than its own allotted reach
+      const d = Math.max(0, Math.min(x, y, w - (x + bw), h - (y + bh)));
+      if (d > b.reach) continue;
+      edgeCx.fillRect(x, y, bw, bh);
     }
   }
 
-  function cloudEdgeFrame() {
-    edgeRaf = requestAnimationFrame(cloudEdgeFrame);
-    edgePhase += reduceMotion ? 0 : 0.006;
-    cloudEdgeDraw();
-  }
-
+  function cloudEdgeFrame() { edgeRaf = requestAnimationFrame(cloudEdgeFrame); cloudEdgeDraw(); }
   function cloudEdgeStart() {
     const wrap = document.getElementById("mapwrap");
-    if (!wrap) return;
     edgeCv = document.getElementById("cloudedge");
-    if (!edgeCv) return;
+    if (!wrap || !edgeCv) return;
     edgeCx = edgeCv.getContext("2d");
+    wrap.addEventListener("scroll", cloudEdgeDraw, { passive: true });
     if (!edgeRaf) edgeRaf = requestAnimationFrame(cloudEdgeFrame);
   }
-
-  function cloudEdgeStop() {
-    if (edgeRaf) cancelAnimationFrame(edgeRaf);
-    edgeRaf = null;
-  }
+  function cloudEdgeStop() { if (edgeRaf) cancelAnimationFrame(edgeRaf); edgeRaf = null; }
 
   function renderTopNav() {
     const nav = document.getElementById("topnav");
