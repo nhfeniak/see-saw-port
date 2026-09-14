@@ -1475,6 +1475,12 @@
   // once. Feeding it in a fraction at a time to smooth it out does the
   // opposite — it leaves a residue to correct again next frame, and that is a
   // shiver. Avoidance is what steers; this is only the thing that decides.
+  //
+  // It takes as many passes as it takes: pushing two people apart can push one
+  // of them into a third, and against a kerb the correction has nowhere to go
+  // and has to come out of the other person instead. Three passes left most
+  // frames with somebody a hair inside somebody else. A pass that finds
+  // nothing ends it, which is what nearly every frame costs.
   function separate(g) {
     const D = PED_R * 2, lo = PED_R, hi = WALK_W - PED_R;
     // built here rather than reused from the step: somebody who has just
@@ -1484,21 +1490,32 @@
     for (const w of peds) {
       const L = lanes.get(bucket(w)); if (L) L.push(w); else lanes.set(bucket(w), [w]);
     }
-    for (let pass = 0; pass < 3; pass++)
-      for (const L of lanes.values())
+    for (let pass = 0; pass < 8; pass++) {
+      let touched = false;
+      for (const L of lanes.values()) {
+        // In order along the pavement, so the inner loop stops at the first
+        // person out of reach instead of walking the rest of the queue. Every
+        // pair used to be looked at; now it is only the ones standing near
+        // enough to matter, which is what pays for the extra passes.
+        const ax = L[0].axis === "v" ? "y" : "x";
+        L.sort((p, q) => p[ax] - q[ax]);
         for (let i = 0; i < L.length; i++)
           for (let j = i + 1; j < L.length; j++) {
-            const a = L[i], b = L[j], ax = a.axis === "v" ? "y" : "x";
-            const u = a[ax] - b[ax];
-            if (u > D || u < -D) continue;
+            const a = L[i], b = L[j];
+            const u = a[ax] - b[ax];             // <= 0: b is further along
+            if (-u > D) break;
             const v = a.off - b.off, d = Math.sqrt(u * u + v * v);
             if (d >= D) continue;
+            touched = true;
             const k = d > .01 ? (D - d) / (2 * d) : 0;
             const du = d > .01 ? u * k : (i % 2 ? D / 2 : -D / 2), dv = v * k;
             a[ax] += du; b[ax] -= du;
             a.off = Math.min(hi, Math.max(lo, a.off + dv));
             b.off = Math.min(hi, Math.max(lo, b.off - dv));
           }
+      }
+      if (!touched) break;
+    }
     for (const w of peds) if (w.axis === "v") w.x = g.walkX + w.off;
   }
 
