@@ -21,7 +21,6 @@
   :root[data-scene="day"] {
     --void:        #9C918C;   /* open ground, sunlit */   /* avenue, in sun */   /* between buildings — they shade their own gap */   /* sidewalk concrete */   /* lane paint */
     --ink:         #141319;
-    --head-ink:    #141319;   /* dark: the heading sits on sunlit asphalt */
     --chrome:      #E8E7E7;   /* same stock as a white-membrane roof */
     --chrome2:     #D2CFCA;
     --plate:       #EDEBE6;
@@ -35,7 +34,6 @@
   :root[data-scene="night"] {
     --void:        #0C0A0A;   /* under a lamp */   /* the gaps, away from the lamps */
     --ink:         #F0EDE6;
-    --head-ink:    #D9C28C;
     --chrome:      #26232B;   /* same stock as the palest night roof */
     --chrome2:     #35313C;
     --plate:       #2A2730;
@@ -112,28 +110,29 @@
   .tabs a { text-decoration: underline; cursor: pointer; }
   .tabs a.active { text-decoration: none; font-weight: bold; }
 
-  /* ---- a date / neighbourhood heading gets its own roof ---- */
-  /* A heading is the gap between two blocks. The walls showing in it are
-     sized in script from how far off-centre the gap is — straight below the
-     camera you see no wall at all, at the edge of the screen you see 41px of
-     it, so they breathe open and shut as you scroll. */
-  .date-head {
-    position: relative;
-    box-sizing: border-box;
-    height: var(--cross-h, 100px);   /* pavement, parking, lane, parking, pavement */
-    display: flex;
-    align-items: flex-start;
-    margin: 0;
-    padding: var(--cross-pad, 37px) 11px 0;   /* puts the words in the carriageway */
-    background: none;
-    color: var(--head-ink);
+  /* ---- a date / neighbourhood subtitle ----
+     It gets a roof like any listing, and the gap underneath it is the cross
+     street. Straight below the camera the roofs and the ground line up and
+     the gap is only the street; away from the centre the two planes separate
+     and a strip of the building wall shows, which is where the shopfront is
+     drawn. */
+  .head-roof {
+    margin-right: var(--gutter, 38px);
+    padding: 12px 11px 13px;
+    background: var(--roof);
+    color: var(--roof-ink);
     font-weight: bold;
     font-size: 22px;
   }
 
-  .date-head > span { position: relative; z-index: 1; }
+  .date-head {
+    box-sizing: border-box;
+    height: var(--cross-h, 100px);   /* pavement, parking, lane, parking, pavement */
+    margin: 0;
+    background: none;
+  }
 
-  .date-head .daymap-link {
+  .head-roof .daymap-link {
     font-size: 14px;
     font-weight: normal;
     text-decoration: underline;
@@ -236,18 +235,18 @@
      rather than of a building that is not being drawn */
   :root[data-mode="clouds"] .bm:not(.on)::after { box-shadow: inset 0 0 0 1px var(--chrome-ink); }
   :root[data-mode="clouds"] .entry-main { padding-right: 11px; }
-
-  :root[data-mode="clouds"] .map-controls button { background: var(--chrome2); }
+  :root[data-mode="clouds"] .head-roof { margin-right: 0; background: none; color: var(--chrome-ink); }
 
   /* ---- maps ---- */
+  /* the controls stand off the map by exactly the gap between them */
   .map-controls {
     position: absolute;
-    left: 32px;
-    bottom: 42px;
+    left: calc(var(--map-pad-x) + var(--map-gap));
+    bottom: calc(var(--map-pad-y) + var(--map-gap));
     z-index: 3;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--map-gap);
     margin: 0;
     padding: 0;
     background: none;
@@ -260,8 +259,8 @@
     font-family: Arial, Helvetica, sans-serif;
     font-size: 16px;
     font-weight: bold;
-    color: var(--chrome-ink);
-    background: var(--chrome2);
+    color: var(--map-btnink);
+    background: var(--map-btn);
     border: none;
     width: 32px;
     height: 32px;
@@ -277,7 +276,8 @@
   }
 
   /* the opening in the cloud is inset, so the glow has somewhere to fall */
-  .mapframe { position: relative; padding: 30px 22px; }
+  :root { --map-pad-x: 22px; --map-pad-y: 30px; --map-gap: 8px; }
+  .mapframe { position: relative; padding: var(--map-pad-y) var(--map-pad-x); }
 
   .mapwrap {
     max-height: 70vh;
@@ -617,16 +617,17 @@
     return (x >>> 0);
   }
 
-  function roofFor(show) {
+  function roofOf(seed) {
     const table = ROOFS[sceneKind] || ROOFS.night;
-    const hash = hashId(show.id);
-    let n = hash % 100, roof = table[0][0];
+    let n = hashId(seed) % 100, roof = table[0][0];
     for (const [hex, w] of table) { if (n < w) { roof = hex; break; } n -= w; }
     // whichever ink reads better on that roof, rather than a fixed threshold —
     // the mid greys sit right where a threshold picks the wrong one
     const ink = contrast(roof, INK_DARK) >= contrast(roof, INK_LIGHT) ? INK_DARK : INK_LIGHT;
     return { roof, ink };
   }
+  const roofFor = (show) => roofOf(show.id);
+  const roofStyle = (sk) => `--roof:${sk.roof};--roof-ink:${sk.ink}`;
 
   function entryHTML(show) {
     const titleText = show.title || show.headline || show.name;
@@ -647,7 +648,7 @@
       : galleryLinked + (addr ? `, ${escapeHTML(addr)}` : "");
     const sk = roofFor(show);
     return `
-      <div class="entry" style="--roof:${sk.roof};--roof-ink:${sk.ink}">
+      <div class="entry" style="${roofStyle(sk)}">
         <div class="entry-main">
           <div class="entry-text">
             <a class="title" href="${escapeHTML(show.share_url || "")}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
@@ -699,7 +700,8 @@
 
   function renderGroupedByDate(groups) {
     return groups.map(([dateKey, items]) => `
-      <div class="date-head"><span>${fmtDateHeading(dateKey)} <a class="daymap-link" data-date="${dateKey}">Map</a></span></div>
+      <div class="head-roof" style="${roofStyle(roofOf(dateKey))}">${fmtDateHeading(dateKey)} <a class="daymap-link" data-date="${dateKey}">Map</a></div>
+      <div class="date-head" data-key="${escapeHTML(dateKey)}"></div>
       <div class="entries">${items.map(entryHTML).join("")}</div>
     `).join("");
   }
@@ -773,7 +775,8 @@
     const groups = groupByKey(pool, s => s.neighborhood || "",
       (a, b) => neighborhoodRank(a[0]) - neighborhoodRank(b[0]) || a[0].localeCompare(b[0]));
     return tabs + groups.map(([nbhd, items]) => `
-      <div class="date-head"><span>${capWords(nbhd) || "Unknown"}</span></div>
+      <div class="head-roof" style="${roofStyle(roofOf(nbhd))}">${capWords(nbhd) || "Unknown"}</div>
+      <div class="date-head" data-key="${escapeHTML(nbhd)}"></div>
       <div class="entries">${bookmarkedFirst(sortByLatitude(items)).map(entryHTML).join("")}</div>
     `).join("");
   }
@@ -1206,29 +1209,34 @@
       map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
              line: "#54452F", water: "#000000" },
       glow: [255, 214, 150],
+      win: "#E2ECFF",                      // the gallery window, lit
       blank: "#000000", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
       glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
-      density: { walkers: 46, cars: 6, park: .70,
-                 crossCars: 3, crossPark: .50, crossPeds: 5 },
+      // people per 100px of pavement, so a long block carries as many as a
+      // tall screen does — the avenue and the side streets fill the same way
+      density: { peds: 6.0, crossPeds: 3.0, cars: 6, park: .70,
+                 crossCars: 3, crossPark: .50 },
       night: true,
     },
     day: {
-      map: { back: "#E8E7E7", block: "#DDDCDC", grid: "#B0A49D",
-             line: "#A89C96", water: "#3B3A44" },
+      map: { back: "#E8E7E7", block: "#DDDCDC", grid: "#6E6E74",
+             line: "#6E6E74", water: "#1F4568" },   // the street, and the river
       glow: null,
+      win: "#E8E7E7",
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
       head: null, tail: null, gallery: null,
-      // daylight on a weekday afternoon, not an opening: the street is quiet
-      density: { walkers: 8, cars: 2, park: .30,
-                 crossCars: 1, crossPark: .22, crossPeds: 2 },
+      // daylight on a weekday afternoon, not an opening: few people about,
+      // but the kerb is full — everybody who is here has parked and gone in
+      density: { peds: 0.7, crossPeds: 0.7, cars: 2, park: .50,
+                 crossCars: 1, crossPark: .40 },
       night: false,
     },
   };
@@ -1311,7 +1319,7 @@
                r: PED_R, color: pick(S.coats), hold: hold || 0, key: null, side: 0 };
     };
     peds = [];
-    for (let i = 0; i < S.density.walkers; i++)
+    for (let i = 0, n = R(H / 100 * S.density.peds); i < n; i++)
       peds.push(walker(rnd(-40, H + 40), Math.random() < .5 ? 1 : -1, 0));
     if (S.night) for (let k = 0; k < 4; k++) {       // knots standing and talking
       const y = rnd(0, H);
@@ -1348,12 +1356,13 @@
       // A block only ever filled up when someone walked round the corner onto
       // it, so every street started deserted. It gets its own crowd instead,
       // in the same pool as the avenue's, free to swap between the two.
-      for (let i = 0; i < d.crossPeds; i++) {
-        const v = M(rnd(1.1, 1.6)), off = rnd(3, WALK_W - 3);
-        peds.push({ axis: "h", key, side: Math.random() < .5 ? 1 : 0, off,
-                    x: rnd(4, W - 4), y: -999, dir: Math.random() < .5 ? 1 : -1,
-                    speed: v, base: v, r: PED_R, color: pick(S.coats), hold: 0 });
-      }
+      for (const side of [0, 1])
+        for (let i = 0, n = R(W / 100 * d.crossPeds); i < n; i++) {
+          const v = M(rnd(1.1, 1.6));
+          peds.push({ axis: "h", key, side, off: rnd(3, WALK_W - 3),
+                      x: rnd(4, W - 4), y: -999, dir: Math.random() < .5 ? 1 : -1,
+                      speed: v, base: v, r: PED_R, color: pick(S.coats), hold: 0 });
+        }
       crossStreets.set(key, c);
     }
     return c;
@@ -1366,6 +1375,13 @@
   // removed and respawned, so the lines of people stay continuous.
   function stepWalkers(dt, g, H, boxes) {
     const byKey = new Set(boxes.map(b => b.key));
+    // One queue per pavement. Checking everyone against everyone was fine for
+    // a single street; with a crowd on every block it is the whole frame.
+    const lanes = new Map();
+    for (const w of peds) {
+      const k = w.axis === "v" ? "v" : w.key;
+      const L = lanes.get(k); if (L) L.push(w); else lanes.set(k, [w]);
+    }
     for (const w of peds) {
       if (w.hold === Infinity) continue;
 
@@ -1373,8 +1389,8 @@
       w.off += Math.max(-10 * dt, Math.min(10 * dt, w.offT - w.off));
 
       let limit = w.base;
-      for (const o of peds) {
-        if (o === w || o.axis !== w.axis) continue;
+      for (const o of lanes.get(w.axis === "v" ? "v" : w.key)) {
+        if (o === w) continue;
         const ahead = (w.axis === "v" ? o.y - w.y : o.x - w.x) * w.dir;
         if (ahead < 0 || ahead > 30 || Math.abs(across(o) - across(w)) > 6) continue;
         if (o.dir === w.dir) limit = Math.min(limit, o.speed * .9);
@@ -1431,19 +1447,11 @@
       // made the gap stop widening and start dragging the street with it.
       const shift = -(1 - PARALLAX) * (r.top - innerHeight / 2);
       const top = r.top + shift;
-      const key = el.textContent.trim();
+      const key = el.dataset.key;   // its own, not its words: the gap is empty
       out.push({ el, key, shift, top, st: crossFor(key, S, W),
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
     }
     return out;
-  }
-
-  // the heading rides with its street, not with the roof it sits in
-  function lockHeadings(boxes) {
-    for (const b of boxes) {
-      const span = b.el.firstElementChild;
-      if (span) span.style.transform = "translateY(" + b.shift.toFixed(1) + "px)";
-    }
   }
 
   // Bumper to bumper only at a standstill. Moving traffic keeps roughly
@@ -1664,6 +1672,23 @@
       }
     }
 
+    // 3b — the shopfront. Off the centre of the screen the roofs and the
+    // ground have pulled apart, and a strip of the building's own wall shows in
+    // the gap. The lit window sits on it, hard against the pavement and on top
+    // of whatever light it is throwing, and grows as the perspective opens.
+    cx.fillStyle = S.win;
+    for (const b of boxes) {
+      const wall = Math.min(Math.abs(b.shift), 9);
+      if (wall < 1) continue;
+      const above = b.shift > 0;                  // which building is showing
+      const y = above ? R(b.top) - wall : R(b.bot);
+      for (const L of b.st.lights) {
+        if (L.side !== (above ? 0 : 1)) continue;
+        const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - x);
+        if (len > 0) cx.fillRect(x, y, len, wall);
+      }
+    }
+
     // 4 — parked. Nobody parks in a junction or on a crossing.
     const blockedV = (y, len) => boxes.some(b => y + len > b.top && y < b.bot);
     for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) veh(R(g.parkA), p.y + p.spec.len, p.spec, p.color, S.glass, true);
@@ -1690,7 +1715,7 @@
       const b = boxes.find(x => x.key === w.key);
       w.y = b ? (w.side ? b.roadBot : b.top) + w.off : -999;
     }
-    for (const p of peds) disc(p.x, p.y, p.r, p.color);
+    for (const p of peds) if (p.y > -20) disc(p.x, p.y, p.r, p.color);
 
     // 7 — the crop. Past the kerb there is nothing, so a car or a headlight
     // that overshoots is cut off at the line instead of floating in the blank.
@@ -1721,7 +1746,6 @@
       }
     }
     lastPar = par;
-    lockHeadings(boxes);
     draw(par, boxes);
   }
 
@@ -1736,9 +1760,16 @@
   function sceneSetKind(kind, mode) {
     sceneMode = mode || "street";
     document.documentElement.setAttribute("data-mode", sceneMode);
-    // the basemap is recoloured out of this scene's own palette
-    for (const [k, v] of Object.entries(SCENE[kind].map))
-      rootStyle.setProperty("--map-" + k, v);
+    // the basemap is recoloured out of this scene's own palette, and the
+    // controls take the brightest point of the halo around it — computed from
+    // the glow rather than copied off it, so it can never fall behind
+    const M2 = SCENE[kind];
+    for (const [k, v] of Object.entries(M2.map)) rootStyle.setProperty("--map-" + k, v);
+    const back = [1, 3, 5].map(i => parseInt(M2.map.back.substr(i, 2), 16));
+    rootStyle.setProperty("--map-btn", M2.glow
+      ? "#" + back.map((c, i) => Math.round((c + M2.glow[i]) / 2).toString(16).padStart(2, "0")).join("")
+      : "#FFFFFF");
+    rootStyle.setProperty("--map-btnink", INK_DARK);
     if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
@@ -1761,11 +1792,8 @@
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
       if (performance.now() - lastT > 120) {
-        // re-lock here too: this path runs precisely when frames are not, and
-        // without it the headings stay pinned to the roofs
-        const boxes = sceneMode === "street" ? intersections() : [];
-        lockHeadings(boxes);
-        draw(scrollY * PARALLAX, boxes);
+        // this path runs precisely when frames are not
+        draw(scrollY * PARALLAX, sceneMode === "street" ? intersections() : []);
       }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
