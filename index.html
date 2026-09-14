@@ -1,52 +1,79 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-scene="night">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark light">
 <title>See Saw Port</title>
 <style>
-  :root {
-    --bg: #ffffff;
-    --fg: #000000;
-    --line: #000000;
-    /* bookmarked state — same in both themes */
-    --bookmark: #FFD91A;
-    /* current location — same in both themes */
-    --location: #1E5FD8;
+  /* ------------------------------------------------------------------
+     Tribeca from above. Two scenes, set per page on <html data-scene>:
+       night  — Openings. An opening reception after dark.
+       day    — On View. Satellite daylight.
+     Roof, asphalt and shadow colours are sampled from aerial photographs
+     of Tribeca, not invented. The one rule they follow that matters:
+     lit surfaces run warm, shadowed surfaces run cool/blue. Flat grey
+     in both directions is what makes fake aerials look fake.
+     Shapes are rectangles and circles only; no transparency anywhere;
+     gradients only for light falling, always along a rectangle's axis.
+     ------------------------------------------------------------------ */
+
+  :root[data-scene="day"] {
+    --void:        #9C918C;   /* open ground, sunlit */
+    --asphalt:     #8C7F78;   /* avenue, in sun */
+    --asphalt-sh:  #4A4550;   /* between buildings — they shade their own gap */
+    --walk:        #A89C96;   /* sidewalk concrete */
+    --curb:        #B6ADA6;
+    --paint:       #E4E0DA;   /* lane paint */
+    --paint-y:     #D2A93C;
+    --facade-top:  #9A928C;
+    --facade-bot:  #5E5860;
+    --ink:         #141319;
+    --paint-ink:   #E4E0DA;   /* the summary line, painted on the shaded gap */
+    --plate:       #EDEBE6;   /* "cloud" the interface sits on */
+    --plate-edge:  #FFFFFF;
+    --plate-ink:   #141319;
+    --manhole:     #6E6763;
+    --umbrella:    #2F5FC4;
+    --line:        #141319;
+    --bookmark:    #FFD91A;
+    --location:    #1E5FD8;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #000000;
-      --fg: #ffffff;
-      --line: #ffffff;
-    }
+  :root[data-scene="night"] {
+    --void:        #0C0A0A;
+    --asphalt:     #3B2C1E;   /* under a lamp */
+    --asphalt-sh:  #221C16;   /* the gaps, away from the lamps */
+    --walk:        #5E4A32;
+    --curb:        #6B5842;
+    --paint:       #BFB8A6;
+    --paint-y:     #C9A13A;
+    --facade-top:  #2A2430;
+    --facade-bot:  #121016;
+    --ink:         #F0EDE6;
+    --paint-ink:   #D9C28C;
+    --plate:       #2A2730;   /* night cloud, lit from the city below */
+    --plate-edge:  #6E6A74;
+    --plate-ink:   #F0EDE6;
+    --manhole:     #2C2620;
+    --umbrella:    #2F5FC4;
+    --line:        #F0EDE6;
+    --bookmark:    #FFD91A;
+    --location:    #1E5FD8;
   }
 
-  :root[data-theme="dark"] {
-    --bg: #000000;
-    --fg: #ffffff;
-    --line: #ffffff;
-  }
-
-  /* Mobile browsers inflate the font size of text blocks they judge to be
-     "readable content," per-block — which is why short titles grow and long
-     ones don't. Each engine opts out differently:
-       -webkit- : Chrome/Safari. 100%, not none — none breaks iOS landscape.
-       -moz-    : Firefox. Only accepts `none`; ignores the -webkit- property
-                  entirely, which is why the earlier fix did nothing here.
-     Applied to * because relying on inheritance did not hold in practice. */
   * {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -moz-text-size-adjust: none;
   }
 
+  html { background: var(--void); }
+
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--fg);
+    background: none;
+    color: var(--ink);
     font-family: Arial, Helvetica, sans-serif;
     font-size: 14px;
     line-height: 1.4;
@@ -54,60 +81,62 @@
     max-width: 640px;
   }
 
+  /* the street lives on a fixed canvas behind everything; roofs are opaque
+     DOM on top of it, so you only see down in the gaps they leave */
+  #scene {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    display: block;
+  }
+
+  body > * { position: relative; z-index: 1; }
+
   a { color: inherit; }
 
-  .meta {
-    margin-bottom: 12px;
+  /* ---- interface sits on a cloud, above the city ---- */
+  .meta, nav.top, .tabs, .map-controls {
+    background: var(--plate);
+    color: var(--plate-ink);
+    border-top: 2px solid var(--plate-edge);
+    padding: 7px 10px;
   }
+
+  .meta { margin: 0 0 10px; }
 
   nav.top {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 14px;
-    padding-bottom: 10px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid var(--line);
+    margin: 0 0 12px;
   }
 
-  nav.top a {
-    text-decoration: underline;
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  nav.top a.active {
-    text-decoration: none;
-  }
+  nav.top a { text-decoration: underline; cursor: pointer; font-weight: bold; }
+  nav.top a.active { text-decoration: none; }
 
   .tabs {
-    margin: 0 0 14px;
+    margin: 0 0 12px;
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
   }
 
-  .tabs a {
-    text-decoration: underline;
-    cursor: pointer;
-  }
+  .tabs a { text-decoration: underline; cursor: pointer; }
+  .tabs a.active { text-decoration: none; font-weight: bold; }
 
-  .tabs a.active {
-    text-decoration: none;
-    font-weight: bold;
-  }
-
+  /* ---- a date / neighbourhood heading gets its own roof ---- */
   .date-head {
     font-weight: bold;
     font-size: 22px;
-    margin: 38px 0 10px;
+    margin: 26px 0 0;
+    padding: 7px 11px;
+    background: var(--plate);
+    color: var(--plate-ink);
+    border-top: 2px solid var(--plate-edge);
   }
 
-  .date-head:first-of-type { margin-top: 4px; }
-
-  /* :first-of-type counts div siblings, and on On View the sub-tabs are the
-     first div — so the rule above never reached the first heading there and it
-     kept the full 38px. Matching the tab row directly closes the gap to the
-     same 14px the headingless neighborhood tabs have. */
+  .date-head:first-of-type { margin-top: 0; }
   .tabs + .date-head { margin-top: 0; }
 
   .date-head .daymap-link {
@@ -117,33 +146,75 @@
     cursor: pointer;
   }
 
-  .entries {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
+  .entries { display: block; }
+  .maplist { margin-top: 14px; }
 
-  .maplist {
-    margin-top: 20px;
-  }
-
+  /* ---- one building per listing ----------------------------------
+     column 1 is the roof, column 2 is the pavement beside it where the
+     bookmark sits; the row underneath is the gap you see down through. */
   .entry {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: 1fr 64px;
+    align-items: stretch;
   }
 
   .entry-main {
-    flex: 1;
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
+    background: var(--roof);
+    color: var(--roof-ink);
+    padding: 8px 11px 9px;
   }
 
-  /* bookmark toggle: big invisible tap target, small drawn circle */
+  /* the wall, falling away into the gap. One gradient, along the rectangle. */
+  .entry .facade {
+    grid-column: 1;
+    grid-row: 2;
+    height: var(--facade-h, 9px);
+    background: linear-gradient(to bottom, var(--facade-top), var(--facade-bot));
+  }
+
+  .entry .gap {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    min-height: 30px;
+  }
+
+  .entry .gap:empty {
+    min-height: 16px;
+    padding: 0;
+    padding: 5px 11px 7px;
+    box-sizing: border-box;
+  }
+
+  .entry .title {
+    display: block;
+    font-size: 14px;
+    line-height: 1.4;
+    font-weight: bold;
+    text-decoration: none;
+  }
+
+  .entry .sub { display: block; font-size: 14px; line-height: 1.4; }
+  .entry .addr-link { text-decoration: none; }
+
+  /* the summary, painted on the roadway like a traffic direction marking */
+  .entry .summary {
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    color: var(--paint-ink);
+    font-style: normal;
+  }
+
+  /* ---- bookmark: a plate in the pavement, and an umbrella over it ---- */
   .bm {
-    flex: none;
-    width: 32px;
-    height: 32px;
-    margin-right: -7px;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-self: start;   /* sits on the pavement, not out in the road */
+    width: 34px;
+    height: 34px;
     padding: 0;
     background: none;
     border: none;
@@ -159,44 +230,30 @@
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    border: 1px solid var(--line);
-    background: transparent;
+    background: var(--manhole);
+    border: 1px solid var(--curb);
   }
 
   .bm.on::after {
-    border-color: transparent;
-    background: var(--bookmark);
+    width: 25px;
+    height: 25px;
+    background: var(--umbrella);
+    border-color: var(--umbrella);
   }
 
-  .entry .title {
-    display: block;
-    font-size: 14px;
-    line-height: 1.4;
-    font-weight: bold;
-    text-decoration: none;
+  .empty {
+    padding: 8px 11px;
+    background: var(--plate);
+    color: var(--plate-ink);
+    border-top: 2px solid var(--plate-edge);
   }
 
-  .entry .sub {
-    display: block;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .entry .summary {
-    font-style: italic;
-  }
-
-  .entry .addr-link {
-    text-decoration: none;
-  }
-
-  .empty { padding: 8px 0; }
-
+  /* ---- maps ---- */
   .map-controls {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 8px;
+    margin-top: 10px;
   }
 
   .map-controls button {
@@ -206,16 +263,14 @@
     font-family: Arial, Helvetica, sans-serif;
     font-size: 16px;
     font-weight: bold;
-    color: var(--fg);
-    background: var(--bg);
-    border: 1px solid var(--line);
+    color: var(--plate-ink);
+    background: var(--plate);
+    border: 1px solid var(--plate-ink);
     width: 32px;
     height: 32px;
     cursor: pointer;
   }
 
-  /* location toggle — a blue dot inside a normal control box, the same dot it
-     puts on the map. No status text beside it. */
   .map-controls button.loc::after {
     content: "";
     width: 15px;
@@ -227,18 +282,28 @@
   .mapwrap {
     max-height: 70vh;
     overflow: auto;
-    border: 1px solid var(--line);
+    border: 2px solid var(--plate-edge);
     -webkit-overflow-scrolling: touch;
   }
 
-  .mapinner {
-    position: relative;
-  }
+  .mapinner { position: relative; }
+  .mapinner svg { display: block; max-width: none; }
 
-  .mapinner svg {
-    display: block;
-    max-width: none;
-  }
+  /* the basemap carries its own greys; repaint them to match the scene.
+     #mapinner beats the <style> inside the SVG on specificity. */
+  :root[data-scene="night"] #mapinner .st0 { fill: #0C0A0A; }
+  :root[data-scene="night"] #mapinner .st1 { fill: #191519; }
+  :root[data-scene="night"] #mapinner .st2 { opacity: 1; fill: #191519; }
+  :root[data-scene="night"] #mapinner .st3 { stroke: #7A5423; }
+  :root[data-scene="day"]   #mapinner .st0 { fill: #CFC9C4; }
+  :root[data-scene="day"]   #mapinner .st1 { fill: #DED8D3; }
+  :root[data-scene="day"]   #mapinner .st2 { opacity: 1; fill: #DED8D3; }
+  :root[data-scene="day"]   #mapinner .st3 { stroke: #9A938C; }
+
+  /* The rivers are the only paths in the basemap carrying no class, so they
+     kept their default black and read as holes once the land went light. */
+  :root[data-scene="night"] #mapinner path:not([class]) { fill: #08090C; }
+  :root[data-scene="day"]   #mapinner path:not([class]) { fill: #6B7A82; }
 
   .dot {
     position: absolute;
@@ -252,18 +317,20 @@
 
   .dot::after {
     content: "";
+    box-sizing: border-box;
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    background: #ffffff;
+    background: var(--dot-face);
+    border: 1px solid var(--dot-edge);
   }
 
-  /* bookmarked shows read yellow on the map too — display only, not togglable here */
-  .dot.on::after {
-    background: var(--bookmark);
-  }
+  :root[data-scene="night"] { --dot-face: #F0EDE6; --dot-edge: #F0EDE6; }
+  :root[data-scene="day"]   { --dot-face: #FFFFFF; --dot-edge: #141319; }
 
-  /* current location — same footprint as a show dot, so it reads as one of them */
+  /* bookmarked reads yellow on the map, as before */
+  .dot.on::after { background: var(--bookmark); border-color: var(--bookmark); }
+
   .me {
     position: absolute;
     width: 15px;
@@ -278,14 +345,21 @@
     position: absolute;
     transform: translateX(-50%);
     font-size: 10px;
-    color: #ffffff;
+    color: var(--map-label);
     white-space: nowrap;
     pointer-events: none;
   }
 
+  :root[data-scene="night"] { --map-label: #F0EDE6; }
+  :root[data-scene="day"]   { --map-label: #141319; }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* the scene still draws, it just stops moving */
+  }
 </style>
 </head>
 <body>
+<canvas id="scene" aria-hidden="true"></canvas>
 <div class="meta" id="updated">loading...</div>
 <nav class="top" id="topnav"></nav>
 
@@ -519,6 +593,47 @@
     return show.address1 + (show.address2 ? ", " + show.address2 : "");
   }
 
+  // Roof colours, sampled from the aerials, in roughly the proportions the
+  // photographs show: mostly pale membrane, a solid minority of dark EPDM,
+  // and a few accents. Assigned by a hash of the show id so a building keeps
+  // its roof between renders instead of flickering on every repaint.
+  const ROOFS = {
+    day: [["#E8E7E7",17],["#DCD7D2",15],["#CEC6C3",13],["#C5B9B6",11],["#A79C98",9],
+          ["#6B6460",8],["#555062",10],["#4F4650",9],["#C5DCD2",3],["#D4B2A5",3],["#67645F",2]],
+    night: [["#17161C",26],["#1C1A21",24],["#222027",20],["#131218",18],["#26232B",12]],
+  };
+  const INK_DARK = "#141319", INK_LIGHT = "#F0EDE6";
+
+  function relLum(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const f = c => (c /= 255) <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    return 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255);
+  }
+  const contrast = (a, b) => {
+    const [x, y] = [relLum(a), relLum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+
+  function hashId(id) {
+    let x = 2166136261;
+    const s = String(id);
+    for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); }
+    return (x >>> 0);
+  }
+
+  function roofFor(show) {
+    const table = ROOFS[sceneKind] || ROOFS.night;
+    const hash = hashId(show.id);
+    let n = hash % 100, roof = table[0][0];
+    for (const [hex, w] of table) { if (n < w) { roof = hex; break; } n -= w; }
+    // whichever ink reads better on that roof, rather than a fixed threshold —
+    // the mid greys sit right where a threshold picks the wrong one
+    const ink = contrast(roof, INK_DARK) >= contrast(roof, INK_LIGHT) ? INK_DARK : INK_LIGHT;
+    // >>> not >>: a signed shift turns hashes above 2^31 negative, and the
+    // modulo carries the sign through into a negative wall height
+    return { roof, ink, fh: 6 + (hash >>> 8) % 13 };  // varied parapet heights
+  }
+
   function entryHTML(show) {
     const titleText = show.title || show.headline || show.name;
     const combinedTitle = show.artist ? `${show.artist} – ${titleText}` : titleText;
@@ -536,14 +651,16 @@
     const galleryLine = (dl && addr)
       ? `${galleryLinked}, <a class="addr-link" href="${dl}" target="_blank" rel="noopener">${escapeHTML(addr)}</a>`
       : galleryLinked + (addr ? `, ${escapeHTML(addr)}` : "");
+    const sk = roofFor(show);
     return `
-      <div class="entry">
+      <div class="entry" style="--roof:${sk.roof};--roof-ink:${sk.ink};--facade-h:${sk.fh}px">
         <div class="entry-main">
           <a class="title" href="${escapeHTML(show.share_url || "")}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
           <div class="sub">${galleryLine}</div>
-          ${show.summary ? `<div class="sub summary">${escapeHTML(show.summary)}</div>` : ""}
         </div>
         <button class="bm" type="button" data-id="${show.id}" aria-pressed="false" aria-label="Bookmark this show"></button>
+        <div class="facade"></div>
+        <div class="gap">${show.summary ? `<div class="sub summary">${escapeHTML(show.summary)}</div>` : ""}</div>
       </div>`;
   }
 
@@ -1029,6 +1146,334 @@
     });
   }
 
+  // ==================================================================
+  // The street, one floor below the listings.
+  //
+  // Drawn on a fixed canvas behind the page. The roofs are opaque DOM on
+  // top, so the street is only visible where they leave a gap: the strip
+  // beside each bookmark, and the band under each listing where the
+  // summary is painted. Scrolling moves it at a fraction of the page's
+  // rate, which is what sells the height.
+  //
+  // Rectangles and circles only, no transparency, gradients only where
+  // light falls and always along a rectangle's axis.
+  // ==================================================================
+
+  const PARALLAX = 0.45;
+  const GUTTER = 64;      // matches .entry's second grid column
+  const WALK_W = 34;      // sidewalk, against the buildings — wide enough to seat the bookmark
+  const TILE = 900;       // repeat length for fixed street furniture
+
+  const SCENE = {
+    night: {
+      void: "#0C0A0A", asphalt: "#221C16", avenue: "#1A1614", walk: "#4A3B2B",
+      patch: "#262019", cover: "#141010", farBlock: "#1B1A20",
+      curb: "#5E4C34", paint: "#7A7160", paintY: "#7A6328",
+      lampHot: "#6B5637", lampCold: "#2A2118",
+      spillHot: "#B8AE94", spillCold: "#33291E",
+      head: "#8E7A4E", tail: "#B0231C",
+      cars: ["#2A2724", "#1C1A18", "#3A3632", "#4A2F2A", "#22303A", "#5E4A22"],
+      coats: ["#17140F", "#241E16", "#6E6152", "#3A2A22", "#55483A", "#9A8A72"],
+      density: { walkers: 46, cars: 8, parked: 13, fieldWalkers: 34 },
+      lamps: true,
+    },
+    day: {
+      void: "#9C918C", asphalt: "#433E49", avenue: "#8C7F78", walk: "#A89C96",
+      patch: "#524D58", cover: "#3E3A45", farBlock: "#B9B2AC",
+      curb: "#B6ADA6", paint: "#D8D3CB", paintY: "#C99F38",
+      lampHot: null, lampCold: null,
+      spillHot: null, spillCold: null,
+      head: null, tail: "#8E3B34",
+      cars: ["#DDDCDC", "#B6B2B0", "#3A3640", "#2B2833", "#8E3B34", "#E8B830"],
+      coats: ["#2B2B2B", "#6B6256", "#8C8377", "#3A4A5A", "#7A3A32", "#C2BBA8"],
+      density: { walkers: 14, cars: 4, parked: 6, fieldWalkers: 13 },
+      lamps: false,
+    },
+  };
+
+  let cv = null, cx = null, sceneKind = "night";
+  let walkers = [], cars = [], parked = [], fieldWalkers = [];
+  let lastT = -1e9, lastPar = 0, rafId = null;
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+
+  function geom() {
+    const el = document.getElementById("content");
+    const r = el ? el.getBoundingClientRect() : { right: Math.min(innerWidth, 640) - 12 };
+    const walkX = r.right - GUTTER;
+    const roadX = walkX + WALK_W;
+    // On a wide window everything right of the 640px column is canvas. An
+    // avenue that just keeps widening reads as a car park, so cap it and put
+    // the far pavement and the buildings opposite in the space that is left.
+    const roadW = Math.min(Math.max(innerWidth - roadX, 26), 58);
+    const farWalkX = roadX + roadW;
+    return {
+      walkX, walkW: WALK_W, roadX, roadW, fieldW: walkX,
+      farWalkX, farWalkW: 30, farBlockX: farWalkX + 30,
+      parkX: roadX + 1, parkW: 14,          // kerbside parking
+      driveX: roadX + 18, driveW: 15,       // the one moving lane
+    };
+  }
+
+  // ---- population -------------------------------------------------
+  function populate() {
+    const S = SCENE[sceneKind], g = geom(), H = innerHeight;
+    walkers = [];
+    for (let i = 0; i < S.density.walkers; i++) {
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      walkers.push({
+        y: rnd(-40, H + 40), lane: (Math.random() * 3) | 0, lx: 0, dir,
+        speed: rnd(14, 26), base: rnd(14, 26), r: rnd(2.6, 3.4),
+        color: pick(S.coats), hold: 0,
+      });
+    }
+    walkers.forEach(w => { w.lx = laneX(g, w.lane); w.base = w.speed; });
+
+    // Night: knots of people standing and talking, which everyone else has
+    // to get around. That congestion is most of what makes it read as an
+    // opening rather than a commute.
+    if (sceneKind === "night") {
+      for (let k = 0; k < 5; k++) {
+        const y = rnd(0, H), lane = (Math.random() * 2) | 0;
+        for (let m = 0, n = 2 + ((Math.random() * 3) | 0); m < n; m++) {
+          walkers.push({
+            y: y + rnd(-9, 9), lane: lane + (m % 2), lx: 0, dir: 0,
+            speed: 0, base: 0, r: rnd(2.8, 3.4), color: pick(S.coats), hold: Infinity,
+          });
+        }
+      }
+      walkers.forEach(w => { if (w.dir === 0) w.lx = laneX(g, w.lane); });
+    }
+
+    cars = [];
+    for (let i = 0; i < S.density.cars; i++) {
+      cars.push({ y: rnd(-120, H + 120), dir: 1, speed: rnd(40, 70), len: rnd(38, 52),
+                  w: 16, color: pick(S.cars) });
+    }
+    parked = [];
+    let py = rnd(-60, 40);
+    while (py < H + 60) {
+      if (Math.random() < 0.7) parked.push({ y: py, len: rnd(38, 50), color: pick(S.cars) });
+      py += rnd(74, 140);
+      if (parked.length > S.density.parked) break;
+    }
+    fieldWalkers = [];
+    for (let i = 0; i < S.density.fieldWalkers; i++) {
+      fieldWalkers.push({ x: rnd(0, g.fieldW), y: rnd(0, H), dir: Math.random() < 0.5 ? 1 : -1,
+                          speed: rnd(10, 20), r: rnd(2.6, 3.2), color: pick(S.coats) });
+    }
+  }
+
+  const laneX = (g, lane) => g.walkX + 6 + lane * ((g.walkW - 12) / 2);
+
+  // ---- pedestrian behaviour ---------------------------------------
+  // A walker keeps its lane until something is in the way. Anyone ahead in
+  // the same lane going the same way sets a speed limit; anyone coming the
+  // other way, or standing, forces a sidestep — to the building side going
+  // one way and the kerb side going the other, so opposing streams settle
+  // into passing on a consistent side instead of oscillating.
+  function stepWalkers(dt, g, H) {
+    const LANES = 3;
+    for (const w of walkers) {
+      if (w.hold === Infinity) continue;           // standing in conversation
+      let limit = w.base, blocked = false;
+
+      for (const o of walkers) {
+        if (o === w) continue;
+        const dy = (o.y - w.y) * w.dir;             // ahead is positive
+        if (dy < 0 || dy > 60) continue;
+        const sameLane = Math.abs(o.lx - w.lx) < 7;
+        if (!sameLane) continue;
+        if (o.dir === w.dir && o.hold !== Infinity) {
+          if (dy < 26) limit = Math.min(limit, o.speed * 0.92);
+        } else {
+          if (dy < 40) blocked = true;              // head-on, or a standing knot
+        }
+      }
+
+      if (blocked) {
+        const prefer = w.dir > 0 ? 1 : -1;          // keep to one side per direction
+        for (const d of [prefer, -prefer]) {
+          const t = w.lane + d;
+          if (t < 0 || t >= LANES) continue;
+          const tx = laneX(g, t);
+          const clear = !walkers.some(o => o !== w && Math.abs(o.lx - tx) < 7 &&
+                                            Math.abs(o.y - w.y) < 24);
+          if (clear) { w.lane = t; break; }
+        }
+        limit = Math.min(limit, w.base * 0.45);     // slow while squeezing past
+      }
+
+      const tx = laneX(g, w.lane);
+      w.lx += Math.max(-42 * dt, Math.min(42 * dt, tx - w.lx));  // ease across
+      w.speed += (limit - w.speed) * Math.min(1, dt * 3);
+      w.y += w.dir * w.speed * dt;
+
+      if (w.y < -50) w.y = H + 50;
+      if (w.y > H + 50) w.y = -50;
+    }
+  }
+
+  function stepCars(dt, g, H) {
+    for (const c of cars) {
+      let limit = c.speed;
+      for (const o of cars) {
+        if (o === c || o.dir !== c.dir) continue;
+        const dy = (o.y - c.y) * c.dir;
+        if (dy > 0 && dy < c.len + 26) limit = Math.min(limit, o.speed * 0.9);
+      }
+      c.speed += (limit - c.speed) * Math.min(1, dt * 2);
+      c.y += c.dir * c.speed * dt;
+      if (c.y < -160) c.y = H + 160;
+      if (c.y > H + 160) c.y = -160;
+    }
+    for (const f of fieldWalkers) {
+      f.x += f.dir * f.speed * dt;
+      if (f.x < -10) f.x = g.fieldW + 10;
+      if (f.x > g.fieldW + 10) f.x = -10;
+    }
+  }
+
+  // ---- drawing -----------------------------------------------------
+  function vrect(x, y, w, h, top, bot) {
+    const grd = cx.createLinearGradient(0, y, 0, y + h);
+    grd.addColorStop(0, top); grd.addColorStop(1, bot);
+    cx.fillStyle = grd; cx.fillRect(x, y, w, h);
+  }
+  function hrect(x, y, w, h, left, right) {
+    const grd = cx.createLinearGradient(x, 0, x + w, 0);
+    grd.addColorStop(0, left); grd.addColorStop(1, right);
+    cx.fillStyle = grd; cx.fillRect(x, y, w, h);
+  }
+  function disc(x, y, r, color) {
+    cx.fillStyle = color; cx.beginPath(); cx.arc(x, y, r, 0, 6.2832); cx.fill();
+  }
+
+  function draw(par) {
+    const S = SCENE[sceneKind], g = geom(), W = innerWidth, H = innerHeight;
+
+    cx.fillStyle = S.void; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = S.asphalt; cx.fillRect(0, 0, g.fieldW, H);   // cross-street floor
+    cx.fillStyle = S.walk; cx.fillRect(g.walkX, 0, g.walkW, H); // sidewalk
+    cx.fillStyle = S.avenue; cx.fillRect(g.roadX, 0, g.roadW, H);
+    cx.fillStyle = S.curb; cx.fillRect(g.roadX - 2, 0, 2, H);
+    if (g.farBlockX < W) {                       // the other side of the street
+      cx.fillStyle = S.walk; cx.fillRect(g.farWalkX, 0, g.farWalkW, H);
+      cx.fillStyle = S.curb; cx.fillRect(g.farWalkX, 0, 2, H);
+      cx.fillStyle = S.farBlock; cx.fillRect(g.farBlockX, 0, W - g.farBlockX, H);
+    }
+
+    const off = ((par % TILE) + TILE) % TILE;
+    for (let t = -TILE; t < H + TILE; t += TILE) {
+      const base = t - off;
+
+      // Under the listings it is plain roadway. No markings: the summary line
+      // sitting there IS the marking, and anything else fights it.
+      cx.fillStyle = S.patch;
+      cx.fillRect(18, base + 150, 120, 46);
+      cx.fillRect(g.fieldW - 190, base + 520, 150, 38);
+      cx.fillStyle = S.cover;
+      disc(60, base + 330, 7, S.cover);
+      disc(g.fieldW - 88, base + 742, 6.5, S.cover);
+
+      // kerb edge line, the only paint on the avenue
+      cx.fillStyle = S.paint;
+      cx.fillRect(g.driveX + g.driveW + 1, base, 2, TILE);
+
+      if (S.lamps) {
+        // One lamp every 8-ish buildings, thrown down the pavement. Wide and
+        // low-contrast: a hard-edged pool reads as a stripe, not as light.
+        for (let k = 0; k < 3; k++) {
+          const y = base + k * 300 + 90;
+          vrect(g.walkX - 10, y - 80, g.walkW + 30, 80, S.lampCold, S.lampHot);
+          vrect(g.walkX - 10, y, g.walkW + 30, 80, S.lampHot, S.lampCold);
+        }
+        // light out of a gallery window, crossing the pavement to the kerb
+        for (let k = 0; k < 2; k++) {
+          const y = base + k * 430 + 210;
+          hrect(g.walkX, y, g.walkW - 6, 26, S.spillHot, S.spillCold);
+        }
+      }
+    }
+
+    for (const p of parked) {
+      cx.fillStyle = p.color;
+      cx.fillRect(g.parkX, p.y, g.parkW, p.len);
+    }
+
+    for (const c of cars) {
+      cx.fillStyle = c.color;
+      cx.fillRect(g.driveX, c.y, g.driveW, c.len);
+      if (sceneKind === "night") {
+        // headlights throw forward down the lane; tail lamps sit on the deck
+        vrect(g.driveX, c.y + c.len, g.driveW, 22, S.head, S.avenue);
+        cx.fillStyle = S.tail;
+        cx.fillRect(g.driveX + 1, c.y, 4, 3);
+        cx.fillRect(g.driveX + g.driveW - 5, c.y, 4, 3);
+      }
+    }
+
+    for (const f of fieldWalkers) disc(f.x, f.y, f.r, f.color);
+    for (const w of walkers) disc(w.lx, w.y, w.r, w.color);
+  }
+
+  function frame(t) {
+    rafId = requestAnimationFrame(frame);
+    const par = scrollY * PARALLAX;
+    const dt = Math.min(0.05, (t - lastT) / 1000) || 0.016;
+    lastT = t;
+    if (!reduceMotion) {
+      const g = geom(), H = innerHeight, dPar = par - lastPar;
+      for (const w of walkers) w.y -= dPar;         // the street slides under you
+      for (const c of cars) c.y -= dPar;
+      for (const p of parked) {
+        p.y -= dPar;
+        if (p.y < -120) p.y += H + 240;
+        if (p.y > H + 120) p.y -= H + 240;
+      }
+      for (const f of fieldWalkers) f.y -= dPar;
+      stepWalkers(dt, g, H);
+      stepCars(dt, g, H);
+    }
+    lastPar = par;
+    draw(par);
+  }
+
+  function sizeCanvas() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cv.width = Math.round(innerWidth * dpr);
+    cv.height = Math.round(innerHeight * dpr);
+    cv.style.width = innerWidth + "px";
+    cv.style.height = innerHeight + "px";
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function sceneSetKind(kind) {
+    if (kind === sceneKind && walkers.length) return;
+    sceneKind = kind;
+    document.documentElement.setAttribute("data-scene", kind);
+    populate();
+  }
+
+  function sceneStart() {
+    cv = document.getElementById("scene");
+    cx = cv.getContext("2d");
+    sizeCanvas();
+    populate();
+    addEventListener("resize", () => { sizeCanvas(); populate(); }, { passive: true });
+    lastPar = scrollY * PARALLAX;
+    // Also redraw straight off the scroll event. requestAnimationFrame stops
+    // entirely when the page is not being painted (background tab, low power),
+    // and the street should still be under the gaps when it comes back.
+    addEventListener("scroll", () => {
+      // rafId is set for the life of the page, so it says nothing about whether
+      // frames are actually running. Go by when one last did.
+      if (performance.now() - lastT > 120) draw(scrollY * PARALLAX);
+    }, { passive: true });
+    rafId = requestAnimationFrame(frame);
+  }
+
   function renderTopNav() {
     const nav = document.getElementById("topnav");
     nav.innerHTML = PAGES.map(p =>
@@ -1048,6 +1493,9 @@
 
   function renderContent() {
     const content = document.getElementById("content");
+    // Openings is an opening night; On View is daylight. The scene follows the
+    // page rather than the system theme, which is the whole point of it.
+    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
     // don't keep polling GPS on the list pages; the map branch restarts it
     stopLocationTimer();
 
@@ -1100,6 +1548,8 @@
   async function main() {
     document.getElementById("content").innerHTML = "loading...";
     restoreView();
+    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
+    sceneStart();
     renderTopNav();
     loadBookmarks();
 
