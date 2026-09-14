@@ -85,7 +85,7 @@
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
-    margin: 0 84px 0 0;   /* same width as a roof — it must not cover the street */
+    margin: 0 38px 0 0;   /* same width as a roof — it must not cover the street */
     padding: 4px 11px;
   }
 
@@ -120,11 +120,11 @@
   .date-head {
     position: relative;
     box-sizing: border-box;
-    height: 136px;          /* pavement, parking, lane, parking, pavement */
+    height: 93px;           /* pavement, parking, lane, parking, pavement */
     display: flex;
     align-items: flex-start;
     margin: 0;
-    padding: 54px 11px 0;   /* puts the words in the carriageway */
+    padding: 31px 11px 0;   /* puts the words in the carriageway */
     background: none;
     color: var(--head-ink);
     font-weight: bold;
@@ -155,7 +155,7 @@
   .entry {
     display: grid;
     /* the second column IS the street; keep it equal to GUTTER in script */
-    grid-template-columns: 1fr 84px;
+    grid-template-columns: 1fr 38px;
   }
 
   /* one building, one flat colour, as tall as its own text needs */
@@ -217,7 +217,7 @@
     box-shadow: none;
   }
 
-  .empty { margin-right: 84px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+  .empty { margin-right: 38px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
 
   /* Above the clouds there is no street to leave room for and nothing to
      stand on, so the interface is just text across the full width. */
@@ -231,6 +231,10 @@
 
   /* the listings under a map have no street beside them either */
   :root[data-mode="clouds"] .entry { grid-template-columns: 1fr; }
+
+  /* no roof up here, so the ring takes the colour of the text it sits beside
+     rather than of a building that is not being drawn */
+  :root[data-mode="clouds"] .bm::after { box-shadow: inset 0 0 0 1px var(--chrome-ink); }
   :root[data-mode="clouds"] .entry-main { padding-right: 11px; }
 
   :root[data-mode="clouds"] .map-controls button { background: var(--chrome2); }
@@ -1154,20 +1158,20 @@
   // five cars per scene, and no more.
   // ==================================================================
 
-  const PX_PER_M = 8.5;
+  const PX_PER_M = 5.67;             // two thirds of the old 8.5
   const M = (m) => m * PX_PER_M;
   const ROOF_H_M = 20, CAM_H_M = 220;
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
 
-  // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either
-  // side of an 11 ft lane, 52 ft building line to building line.
-  const WALK_W = 32;                 // 3.8 m / 12 ft
-  const PARK_W = 22, LANE_W = 28;    // 2.6 m / 8 ft and 3.3 m / 11 ft
-  // The avenue runs off the right of the screen, so only the near kerb's
-  // parking is on it — the far row was mostly cut off anyway and was costing
-  // the listings twenty pixels.
-  const AV_ROAD = PARK_W + LANE_W;   // 50
-  const GUTTER = WALK_W + AV_ROAD + 2;
+  // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either side
+  // of an 11 ft lane. Taken from metres so the whole street scales off PX_PER_M.
+  const WALK_W = Math.round(M(3.8));     // 12 ft
+  const PARK_W = Math.round(M(2.6));     // 8 ft
+  const LANE_W = Math.round(M(3.3));     // 11 ft
+  const AV_ROAD = PARK_W + LANE_W;
+  // Narrower than the street it shows, so the far side of the driving lane is
+  // cropped by the edge of the screen and the listings get the width instead.
+  const GUTTER = 38;
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = 4;                   // every person the same size
   const ROAD_W = PARK_W * 2 + LANE_W;    // the cross street shows its full section
@@ -1176,7 +1180,7 @@
 
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
-  const CAR_W = 18;                  // 2.1 m, every vehicle
+  const CAR_W = Math.round(M(2.1));      // 2.1 m, every vehicle
   // len, then the glass as fractions of it: bonnet before the windscreen,
   // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
@@ -1191,7 +1195,7 @@
   const SCENE = {
     night: {
       cloud: "#2A2730", glow: [255, 214, 150],
-      void: "#0A0A0C", asphalt: "#191A20", avenue: "#131419",
+      blank: "#000000", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
       glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
@@ -1202,7 +1206,7 @@
     },
     day: {
       cloud: "#EDEBE6", glow: null,
-      void: "#8E8A8C", asphalt: "#3B3A44", avenue: "#6E6E74",
+      blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
@@ -1228,11 +1232,14 @@
     const walkX = r.right - GUTTER;
     const roadX = walkX + WALK_W;
     return { walkX, roadX, fieldW: walkX,
-             parkA: roadX, lane: roadX + PARK_W, roadEnd: roadX + AV_ROAD };
+             parkA: roadX, lane: roadX + PARK_W,
+             edge: roadX + AV_ROAD };        // past here there is nothing
   }
 
-  const LANES = 2;
-  const laneX = (g, l) => g.walkX + 9 + l * (WALK_W - 18);
+  // Everyone carries how far across the pavement they are and drifts slowly
+  // toward a new spot. Two fixed files read as a queue; a wandering offset
+  // reads as a crowd, which is what the cross streets already looked like.
+  const across = (w) => w.axis === "v" ? w.off : w.y;
 
   function makeCar(S, y) {
     const v = spec();
@@ -1269,18 +1276,18 @@
   function populate() {
     const S = SCENE[sceneKind], g = geom(), H = innerHeight;
 
+    const walker = (y, dir, hold) => {
+      const v = hold ? 0 : M(rnd(1.1, 1.6)), off = rnd(3, WALK_W - 3);
+      return { axis: "v", x: g.walkX + off, y, off, offT: off, dir, speed: v, base: v,
+               r: PED_R, color: pick(S.coats), hold: hold || 0 };
+    };
     peds = [];
-    for (let i = 0; i < S.density.walkers; i++) {
-      const v = M(rnd(1.1, 1.6)), lane = (Math.random() * LANES) | 0;
-      peds.push({ axis: "v", x: laneX(g, lane), y: rnd(-40, H + 40), lane,
-                  dir: Math.random() < 0.5 ? 1 : -1, speed: v, base: v,
-                  r: PED_R, color: pick(S.coats), hold: 0 });
-    }
-    if (S.night) for (let k = 0; k < 4; k++) {
-      const y = rnd(0, H), lane = (Math.random() * LANES) | 0;
+    for (let i = 0; i < S.density.walkers; i++)
+      peds.push(walker(rnd(-40, H + 40), Math.random() < .5 ? 1 : -1, 0));
+    if (S.night) for (let k = 0; k < 4; k++) {       // knots standing and talking
+      const y = rnd(0, H);
       for (let m = 0, n = 2 + ((Math.random() * 3) | 0); m < n; m++)
-        peds.push({ axis: "v", x: laneX(g, lane), y: y + rnd(-9, 9), lane, dir: 0,
-                    speed: 0, base: 0, r: PED_R, color: pick(S.coats), hold: Infinity });
+        peds.push(walker(y + rnd(-7, 7), 0, Infinity));
     }
 
     avCars = [];
@@ -1319,46 +1326,39 @@
     for (const w of peds) {
       if (w.hold === Infinity) continue;
 
+      if (Math.random() < dt * .4) w.offT = rnd(3, WALK_W - 3);   // wander across
+      w.off += Math.max(-10 * dt, Math.min(10 * dt, w.offT - w.off));
+
+      let limit = w.base;
+      for (const o of peds) {
+        if (o === w || o.axis !== w.axis) continue;
+        const ahead = (w.axis === "v" ? o.y - w.y : o.x - w.x) * w.dir;
+        if (ahead < 0 || ahead > 30 || Math.abs(across(o) - across(w)) > 6) continue;
+        if (o.dir === w.dir) limit = Math.min(limit, o.speed * .9);
+        else {                                                    // step around
+          limit = Math.min(limit, w.base * .4);
+          w.offT = w.off < WALK_W / 2 ? WALK_W - 4 : 4;
+        }
+      }
+      w.speed += (limit - w.speed) * Math.min(1, dt * 3);
+
       if (w.axis === "v") {
-        let limit = w.base, blocked = false;
-        for (const o of peds) {
-          if (o === w || o.axis !== "v") continue;
-          const dy = (o.y - w.y) * w.dir;
-          if (dy < 0 || dy > 60 || Math.abs(o.x - w.x) > 8) continue;
-          if (o.dir === w.dir && o.hold !== Infinity) { if (dy < 26) limit = Math.min(limit, o.speed * .92); }
-          else if (dy < 40) blocked = true;
-        }
-        if (blocked) {
-          const t = w.lane === 0 ? 1 : 0, tx = laneX(g, t);
-          if (!peds.some(o => o !== w && o.axis === "v" && Math.abs(o.x - tx) < 8 && Math.abs(o.y - w.y) < 24)) w.lane = t;
-          limit = Math.min(limit, w.base * .45);
-        }
-        const tx = laneX(g, w.lane);
-        w.x += Math.max(-42 * dt, Math.min(42 * dt, tx - w.x));
-        w.speed += (limit - w.speed) * Math.min(1, dt * 3);
+        w.x = g.walkX + w.off;
         w.y += w.dir * w.speed * dt;
         if (w.y < -60) w.y = H + 60;
         if (w.y > H + 60) w.y = -60;
-
-        for (const b of boxes) {                      // a corner to turn at
-          const onNear = w.y > b.top + 4 && w.y < b.top + WALK_W - 4;
-          const onFar = w.y > b.roadBot + 4 && w.y < b.roadBot + WALK_W - 4;
-          if (!onNear && !onFar) continue;
-          if (Math.random() > 1.5 * dt) continue;
-          w.axis = "h"; w.dir = -1;                   // head off down the block
-          break;
+        for (const b of boxes) {                                  // a corner
+          const near = w.y > b.top + 3 && w.y < b.top + WALK_W - 3;
+          const far = w.y > b.roadBot + 3 && w.y < b.roadBot + WALK_W - 3;
+          if ((near || far) && Math.random() < 1.5 * dt) { w.axis = "h"; w.dir = -1; break; }
         }
       } else {
-        w.speed += (w.base - w.speed) * Math.min(1, dt * 3);
         w.x += w.dir * w.speed * dt;
-        if (w.dir > 0 && w.x > g.walkX + 9) {         // back at the avenue
+        if (w.dir > 0 && w.x > g.walkX + WALK_W / 2) {            // back at the avenue
           w.axis = "v";
-          w.lane = (Math.random() * LANES) | 0;
-          w.x = laneX(g, w.lane);
+          w.off = w.offT = rnd(3, WALK_W - 3);
           w.dir = Math.random() < .5 ? 1 : -1;
-        } else if (w.dir < 0 && w.x < 8) {
-          w.dir = 1;                                  // end of the block, turn back
-        }
+        } else if (w.dir < 0 && w.x < 6) w.dir = 1;
       }
     }
   }
@@ -1477,7 +1477,7 @@
       for (const c of st.cars) c.x += c.speed * dt;
       queue(st.cars, "x", (c) => (st.occ && st.occ.car === c) || (c.x + c.spec.len > g.walkX - 3)
                                    ? Infinity : g.walkX - 4);
-      for (const c of st.cars) if (c.x > g.fieldW + 60) c.x = -220 - Math.random() * 160;
+      for (const c of st.cars) if (c.x > g.edge + 40) c.x = -220 - Math.random() * 160;
     }
   }
 
@@ -1497,10 +1497,13 @@
 
   // The two directions were the same routine with the axes swapped. One
   // function, and a flag that decides which way the rectangle is laid down.
-  function veh(across, front, sp, colour, glass, down) {
+  function veh(at, front, sp, colour, glass, down) {
     const L = sp.len;
-    const box = (a, b) => down ? cx.fillRect(across, R(a), CAR_W, R(b))
-                               : cx.fillRect(R(a), across, R(b), CAR_W);
+    // Not rounded: snapping a moving rectangle to whole pixels every frame is
+    // what made the traffic and the people step rather than glide, and rounding
+    // position and length apart left a hairline flickering at the tail.
+    const box = (a, b) => down ? cx.fillRect(at, a, CAR_W, b)
+                               : cx.fillRect(a, at, b, CAR_W);
     cx.fillStyle = colour; box(front - L, L);
     if (sp.body) { cx.fillStyle = SCENE[sceneKind].cars[2]; box(front - L, L * (1 - sp.body)); }
     cx.fillStyle = glass;
@@ -1514,7 +1517,7 @@
   // rather than each street painting over the other — that is what stops the
   // horizontal street burying the traffic passing under it.
   function drawCrossSurface(g, b, S) {
-    const bl = R(g.walkX), thru = innerWidth;
+    const bl = R(g.walkX), thru = R(g.edge);
     const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
     cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
     cx.save();
@@ -1548,7 +1551,7 @@
   // standing in one of the cross street's pavements.
   function drawCrossPaint(g, b, S) {
     zebra(g.walkX, b.roadTop, ROAD_W, WALK_W, false, S.paint);
-    const av = innerWidth - g.roadX;               // the avenue, out to the edge
+    const av = g.edge - g.roadX;                   // the avenue, kerb to kerb
     zebra(g.roadX, b.top, av, WALK_W, true, S.paint);
     zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint);
   }
@@ -1565,9 +1568,9 @@
     const g = geom();
 
     // 1 — surfaces
-    cx.fillStyle = S.void; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = S.blank; cx.fillRect(0, 0, W, H);      // nothing past the kerb
     cx.fillStyle = S.asphalt; cx.fillRect(0, 0, R(g.fieldW), H);
-    cx.fillStyle = S.avenue; cx.fillRect(R(g.roadX), 0, W - R(g.roadX), H);
+    cx.fillStyle = S.avenue; cx.fillRect(R(g.roadX), 0, R(g.edge) - R(g.roadX), H);
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
@@ -1592,17 +1595,16 @@
           beam(R(g.walkX), y, WALK_W, 34, S.gallery, "right", .5);
         }
       }
-      for (const c of avCars) {
-        const cw = CAR_W;
-        beam(R(g.lane), R(c.y + c.spec.len), cw, 54, S.head, "down", .5);
-        beam(R(g.lane), R(c.y) - 30, cw, 30, S.tail, "up", .38);
+      for (const c of avCars) {                     // start 2px inside the car
+        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, 54, S.head, "down", .5);
+        beam(R(g.lane), c.y - 28, CAR_W, 30, S.tail, "up", .38);
       }
       for (const b of boxes) {
         const st = b.st;
         const laneY = R(b.roadTop) + PARK_W;
         for (const c of st.cars) {
-          beam(R(c.x + c.spec.len), laneY, 46, CAR_W, S.head, "right", .5);
-          beam(R(c.x) - 26, laneY, 26, CAR_W, S.tail, "left", .32);
+          beam(c.x + c.spec.len - 2, laneY, 46, CAR_W, S.head, "right", .5);
+          beam(c.x - 24, laneY, 26, CAR_W, S.tail, "left", .32);
         }
       }
     }
@@ -1626,7 +1628,13 @@
     }
 
     // 6 — people
-    for (const p of peds) disc(R(p.x), R(p.y), p.r, p.color);
+    for (const p of peds) disc(p.x, p.y, p.r, p.color);
+
+    // 7 — the crop. Past the kerb there is nothing, so a car or a headlight
+    // that overshoots is cut off at the line instead of floating in the blank.
+    // Cross traffic is allowed to run well past it before it wraps, which is
+    // what stops a car vanishing whole a length short of the edge.
+    cx.fillStyle = S.blank; cx.fillRect(R(g.edge), 0, W - R(g.edge), H);
   }
 
   function frame(t) {
