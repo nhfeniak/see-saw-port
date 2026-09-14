@@ -67,7 +67,8 @@
      DOM on top of it, so you only see down in the gaps they leave */
   #scene {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
     z-index: 0;
     pointer-events: none;
     display: block;
@@ -1307,6 +1308,17 @@
   let peds = [], avCars = [], avParkA = [], slabs = [], avLights = [], winCol = "#fff";
   let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
+  // The address bar changes the viewport height on every change of scroll
+  // direction, so innerHeight is not a thing to build a scene on: the eye line
+  // would slide, and the canvas would be reallocated, while you were simply
+  // scrolling. The scene keeps the tallest height it has been and hangs the
+  // spare below the fold; only a change of width — a rotation — resets it.
+  let sceneH = innerHeight;
+  // Whole CSS pixels are up to three device pixels on a phone, so a ground
+  // that steps by one of them stutters against roofs the compositor is moving
+  // smoothly. Drawing lands on the device grid instead.
+  let grid = 1;
+  const Q = (v) => Math.round(v * grid) / grid;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -1384,7 +1396,7 @@
   }
 
   function populate() {
-    const S = SCENE[sceneKind], g = geom(), H = innerHeight;
+    const S = SCENE[sceneKind], g = geom(), H = sceneH;
 
     const walker = (y, dir, hold) => {
       const v = hold ? 0 : M(rnd(1.1, 1.6)), off = rnd(PED_R, WALK_W - PED_R);
@@ -1558,13 +1570,13 @@
     const out = [], S = SCENE[sceneKind], W = geom().fieldW;
     for (const el of document.querySelectorAll(".date-head")) {
       const r = el.getBoundingClientRect();
-      if (r.bottom < -160 || r.top > innerHeight + 160) continue;
+      if (r.bottom < -160 || r.top > sceneH + 160) continue;
       // Zero at the middle of the screen, so a building sits squarely on its
       // own street where you are actually looking. Above and below, the planes
       // separate by the parallax difference and overlap a little — that is
       // what being nearer the camera looks like. No clamp: the clamp is what
       // made the gap stop widening and start dragging the street with it.
-      const shift = -(1 - PARALLAX) * (r.top - innerHeight / 2);
+      const shift = -(1 - PARALLAX) * (r.top - sceneH / 2);
       const top = r.top + shift;
       const key = el.dataset.key;   // its own, not its words: the gap is empty
       out.push({ el, key, shift, top, st: crossFor(key, S, W),
@@ -1693,7 +1705,7 @@
   // horizontal street burying the traffic passing under it.
   function drawCrossSurface(g, b, S) {
     const bl = R(g.walkX), thru = R(g.edge);
-    const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
+    const top = Q(b.top), roadTop = Q(b.roadTop), roadBot = Q(b.roadBot);
     cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
     cx.save();
     cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
@@ -1715,8 +1727,8 @@
     cx.fillStyle = colour;
     for (let i = 0; i < n; i++) {
       const o = unit * (1 + 2 * i);
-      if (barsRunDown) cx.fillRect(R(x + o), R(y), R(unit), R(along));
-      else cx.fillRect(R(x), R(y + o), R(along), R(unit));
+      if (barsRunDown) cx.fillRect(R(x + o), Q(y), R(unit), R(along));
+      else cx.fillRect(R(x), Q(y + o), R(along), Q(unit));
     }
   }
 
@@ -1732,7 +1744,7 @@
   }
 
   function draw(par, boxes) {
-    const S = SCENE[sceneKind], W = innerWidth, H = innerHeight;
+    const S = SCENE[sceneKind], W = innerWidth, H = sceneH;
 
     if (sceneMode === "clouds") {
       cx.fillStyle = S.map.back; cx.fillRect(0, 0, W, H);
@@ -1749,12 +1761,12 @@
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
-      for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), R(base + s.y), WALK_W, R(s.h) + 1); }
+      for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), Q(base + s.y), WALK_W, R(s.h) + 1); }
     }
     for (const b of boxes) drawCrossSurface(g, b, S);
     for (const b of boxes) {                       // pavement stops at a junction
       cx.fillStyle = S.avenue;
-      cx.fillRect(R(g.walkX), R(b.roadTop), WALK_W, ROAD_W);
+      cx.fillRect(R(g.walkX), Q(b.roadTop), WALK_W, ROAD_W);
     }
 
     // 2 — paint, before anything drives over it
@@ -1765,7 +1777,7 @@
       for (let t = -TILE; t < H + TILE; t += TILE) {      // frontage on the avenue
         const base = t - off;
         for (const L of avLights) {
-          const y = R(base + L.a), len = R(L.len);
+          const y = Q(base + L.a), len = R(L.len);
           if (y > H || y + len < 0) continue;
           if (boxes.some(b => y + len > b.top - CORNER && y < b.bot + CORNER)) continue;
           beam(R(g.walkX), y, WALK_W, len, S.gallery, "right", .5);
@@ -1774,8 +1786,8 @@
       for (const b of boxes) for (const L of b.st.lights) {  // and on the block
         const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
         if (len <= 0) continue;
-        if (L.side) beam(x, R(b.roadBot), len, WALK_W, S.gallery, "up", .5);
-        else        beam(x, R(b.top), len, WALK_W, S.gallery, "down", .5);
+        if (L.side) beam(x, Q(b.roadBot), len, WALK_W, S.gallery, "up", .5);
+        else        beam(x, Q(b.top), len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
         beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, 54, S.head, "down", .5);
@@ -1783,7 +1795,7 @@
       }
       for (const b of boxes) {
         const st = b.st;
-        const laneY = R(b.roadTop) + PARK_W;
+        const laneY = Q(b.roadTop) + PARK_W;
         for (const c of st.cars) {
           beam(c.x + c.spec.len - 2, laneY, 46, CAR_W, S.head, "right", .5);
           beam(c.x - 24, laneY, 26, CAR_W, S.tail, "left", .32);
@@ -1800,7 +1812,7 @@
       const wall = Math.min(Math.abs(b.shift), 9);
       if (wall < 1) continue;
       const above = b.shift > 0;                  // which building is showing
-      const y = above ? R(b.top) - wall : R(b.bot);
+      const y = above ? Q(b.top) - wall : Q(b.bot);
       for (const L of b.st.lights) {
         if (L.side !== (above ? 0 : 1)) continue;
         const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
@@ -1814,15 +1826,15 @@
     for (const b of boxes) {
       const st = b.st;
       const stop = g.walkX - 6;
-      for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(R(b.roadTop), p.x + p.spec.len, p.spec, p.color, S.glass, false);
-      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(R(b.roadBot) - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(Q(b.roadTop), p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(Q(b.roadBot) - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
     }
 
     // 5 — everything moving, both directions on the same layer
     for (const c of avCars) veh(R(g.lane), c.y + c.spec.len, c.spec, c.color, S.glass, true);
     for (const b of boxes) {
       const st = b.st;
-      const laneY = R(b.roadTop) + PARK_W;
+      const laneY = Q(b.roadTop) + PARK_W;
       for (const c of st.cars) veh(laneY, c.x + c.spec.len, c.spec, c.color, S.glass, false);
     }
 
@@ -1843,36 +1855,55 @@
     cx.fillStyle = S.blank; cx.fillRect(R(g.edge), 0, W - R(g.edge), H);
   }
 
+  // Everything on the ground is held in screen coordinates on a canvas that
+  // does not scroll, so a scroll has to carry it the other way. Both of the
+  // paths that draw have to do it. The surfaces are painted straight from the
+  // offset, so a fallback draw that moved them without carrying the traffic
+  // left the next animated frame to do the whole gap at once — and the street
+  // lurched under the roofs. That is the path a phone takes, because frames
+  // are throttled during a flick and the fallback is what runs.
+  function carry(par) {
+    const d = par - lastPar;
+    lastPar = par;
+    if (!d || sceneMode !== "street") return;
+    for (const w of peds) w.y -= d;
+    for (const c of avCars) c.y -= d;
+    for (const p of avParkA) {
+      p.y -= d;
+      if (p.y < -200) p.y += sceneH + 400;
+      if (p.y > sceneH + 200) p.y -= sceneH + 400;
+    }
+  }
+
   function frame(t) {
     rafId = requestAnimationFrame(frame);
     const par = scrollY * PARALLAX;
     const dt = Math.min(.05, (t - lastT) / 1000) || .016;
     lastT = t; clock += dt;
     const boxes = sceneMode === "street" ? intersections() : [];
-    if (!reduceMotion) {
-      const g = geom(), H = innerHeight, dPar = par - lastPar;
-      if (sceneMode === "street") {
-        for (const w of peds) w.y -= dPar;
-        for (const c of avCars) c.y -= dPar;
-        for (const p of avParkA) {
-          p.y -= dPar;
-          if (p.y < -200) p.y += H + 400;
-          if (p.y > H + 200) p.y -= H + 400;
-        }
-        stepWalkers(dt, g, H, boxes);
-        stepAvenue(dt, g, H, boxes);
-        stepCross(dt, g, boxes);
-      }
+    carry(par);
+    if (!reduceMotion && sceneMode === "street") {
+      const g = geom();
+      stepWalkers(dt, g, sceneH, boxes);
+      stepAvenue(dt, g, sceneH, boxes);
+      stepCross(dt, g, boxes);
     }
-    lastPar = par;
     draw(par, boxes);
   }
 
+  // Reallocating a full-screen bitmap is megabytes of work, and the address
+  // bar asks for one on every change of scroll direction. The canvas keeps the
+  // tallest height it has been and the spare hangs below the fold, so a height
+  // that shrinks and grows again costs nothing.
   function sizeCanvas() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
-    cv.width = Math.round(innerWidth * dpr);
-    cv.height = Math.round(innerHeight * dpr);
-    cv.style.width = innerWidth + "px"; cv.style.height = innerHeight + "px";
+    sceneH = Math.max(sceneH, innerHeight);
+    const w = Math.round(innerWidth * dpr), h = Math.round(sceneH * dpr);
+    cv.style.width = innerWidth + "px";
+    cv.style.height = sceneH + "px";
+    if (cv.width === w && cv.height === h) return;   // assigning either clears it
+    grid = dpr;
+    cv.width = w; cv.height = h;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -1916,14 +1947,19 @@
     // change of width repopulates; a height change just resizes the canvas.
     let lastW = innerWidth;
     addEventListener("resize", () => {
+      const rotated = Math.abs(innerWidth - lastW) > 2;
+      if (rotated) { lastW = innerWidth; sceneH = innerHeight; }   // a new scene
       sizeCanvas();
-      if (Math.abs(innerWidth - lastW) > 2) { lastW = innerWidth; populate(); }
+      if (rotated) populate();
     }, { passive: true });
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
       if (performance.now() - lastT > 120) {
         // this path runs precisely when frames are not
-        draw(scrollY * PARALLAX, sceneMode === "street" ? intersections() : []);
+        const par = scrollY * PARALLAX;
+        const boxes = sceneMode === "street" ? intersections() : [];
+        carry(par);
+        draw(par, boxes);
       }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
