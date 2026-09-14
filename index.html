@@ -302,6 +302,24 @@
   #mapinner .st2 { opacity: 1; fill: var(--map-block); }
   #mapinner .st3 { stroke: var(--map-line); }
 
+  /* The basemap carries a real street hierarchy — motorway, major, minor, and
+     a casing under each of the big ones — so the night view is lit off that
+     rather than off a guess. Broadest selector first: every id here begins
+     with one of the others, and they all have the same weight. */
+  #mapinner g[id^="motorway"] path      { stroke: var(--map-line3); }
+  #mapinner g[id^="motorway_link"] path { stroke: var(--map-line2); }
+  #mapinner g[id^="major_road"] path    { stroke: var(--map-line2); }
+  #mapinner g[id^="minor_road"] path    { stroke: var(--map-line); }
+  /* The casing under a big road is the same geometry at the same width, so it
+     was hidden underneath it. Widened and set between the ground and the road
+     it becomes the bloom a bright street has from the air. Night only: by day
+     there is nothing to bloom. */
+  #mapinner g[id*="__border"] path      { stroke: var(--map-halo); }
+  :root[data-scene="night"] #mapinner g[id*="__border"] path { stroke-width: 2.2; }
+  /* and the patches, which outrank all of it */
+  #mapinner path.st3.lit  { stroke: var(--map-lit); }
+  #mapinner path.st3.dim  { stroke: var(--map-line0); }
+
   /* The rivers are the only paths in the basemap carrying no class, so they
      kept their default black and read as holes once the land went light. */
   #mapinner path:not([class]) { fill: var(--map-water); }
@@ -1116,6 +1134,36 @@
   let basemapPromise = null;
   let basemapSVG = null;
 
+  // Seen from the air a city is not evenly lit: whole neighbourhoods run
+  // brighter or darker than the ones beside them, and a lit stretch is a run
+  // of blocks, not a scattering of segments. So the draw is per patch of
+  // ground rather than per street — a coarse grid over the map, each cell
+  // hashed to a brightness — and every road in a cell agrees with its
+  // neighbours. Casings are left alone; they are the shadow under a road, not
+  // a road. Done once on the sheet every map is cloned from, so it costs
+  // nothing per render.
+  const PATCH = 60;                     // ~500m of city per cell
+
+  function lightStreets(svg) {
+    for (const p of svg.querySelectorAll("path.st3")) {
+      // the group a road sits in is its class. Not the group's subtree: the
+      // whole road network sits inside one whose id also says "roads", and
+      // reaching for that swept up the casings with everything else.
+      const id = p.parentNode.id || "";
+      if (id.indexOf("__border") >= 0) continue;          // bloom, not a road
+      const d = p.getAttribute("d"), c = d.indexOf(",");
+      if (c < 0) continue;
+      const cell = Math.floor(+d.slice(1, c) / PATCH) * 977 +
+                   Math.floor(parseFloat(d.slice(c + 1)) / PATCH);
+      const h = hashId(cell) % 100;
+      // A dark neighbourhood dims its side streets, but an artery burns
+      // whatever the blocks around it are doing — that is what makes the grid
+      // legible from the air at all.
+      if (h < 18) p.classList.add("lit");
+      else if (h >= 80 && id.indexOf("minor_road") === 0) p.classList.add("dim");
+    }
+  }
+
   function loadBasemap() {
     if (!basemapPromise) {
       basemapPromise = fetch("map.svg")
@@ -1127,6 +1175,7 @@
           const parsed = new DOMParser().parseFromString(text, "image/svg+xml");
           const svg = parsed.documentElement;
           if (!svg || svg.nodeName.toLowerCase() !== "svg") throw new Error("not an svg");
+          lightStreets(svg);
           basemapSVG = svg;
           return svg;
         });
@@ -1828,13 +1877,21 @@
     // the basemap is recoloured out of this scene's own palette, and the
     // controls take the brightest point of the halo around it — computed from
     // the glow rather than copied off it, so it can never fall behind
-    const M2 = SCENE[kind];
-    for (const [k, v] of Object.entries(M2.map)) rootStyle.setProperty("--map-" + k, v);
-    const back = [1, 3, 5].map(i => parseInt(M2.map.back.substr(i, 2), 16));
-    rootStyle.setProperty("--map-btn", M2.glow
-      ? "#" + back.map((c, i) => Math.round((c + M2.glow[i]) / 2).toString(16).padStart(2, "0")).join("")
-      : "#FFFFFF");
+    const S2 = SCENE[kind], toward = (a, b, t) => toHex(a.map((c, i) => c + (b[i] - c) * t));
+    for (const [k, v] of Object.entries(S2.map)) rootStyle.setProperty("--map-" + k, v);
+    const back = toRGB(S2.map.back), line = toRGB(S2.map.line);
+    rootStyle.setProperty("--map-btn", S2.glow ? toward(back, S2.glow, .5) : "#FFFFFF");
     rootStyle.setProperty("--map-btnink", INK_DARK);
+    // Every step of street brightness is the same light — the base tone
+    // carried that much further toward the sodium the map itself throws out.
+    // Daylight has no such thing, so every step is the street's own colour and
+    // the grid comes out flat, which is what daylight looks like.
+    const lamp = (t) => S2.glow ? toward(line, S2.glow, t) : S2.map.line;
+    rootStyle.setProperty("--map-line0", S2.glow ? toward(line, back, .45) : S2.map.line);
+    rootStyle.setProperty("--map-halo", lamp(.12));
+    rootStyle.setProperty("--map-line2", lamp(.28));
+    rootStyle.setProperty("--map-line3", lamp(.50));
+    rootStyle.setProperty("--map-lit", lamp(.68));
     if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
