@@ -34,8 +34,7 @@
     --plate:       #EDEBE6;
     --plate-ink:   #141319;
     --chrome-ink:  #141319;
-    --manhole:     #6E6763;
-    --umbrella:    #2F5FC4;
+    --mark:        #E8B830;   /* the yellow of a cab */
     --line:        #141319;
     --bookmark:    #FFD91A;
     --location:    #1E5FD8;
@@ -57,8 +56,7 @@
     --plate:       #2A2730;
     --plate-ink:   #F0EDE6;
     --chrome-ink:  #F0EDE6;
-    --manhole:     #2C2620;
-    --umbrella:    #2F5FC4;
+    --mark:        #E8B830;
     --line:        #F0EDE6;
     --bookmark:    #FFD91A;
     --location:    #1E5FD8;
@@ -103,7 +101,7 @@
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
-    margin: 0;
+    margin: 0 96px 0 0;   /* same width as a roof — it must not cover the street */
     padding: 4px 11px;
   }
 
@@ -181,10 +179,15 @@
     grid-column: 1;
     grid-row: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     background: var(--roof);
     color: var(--roof-ink);
     padding: 9px 11px 10px;
   }
+
+  .entry-text { flex: 1; min-width: 0; }
 
   .entry .title {
     display: block;
@@ -199,14 +202,11 @@
 
   .entry .summary { font-style: italic; }
 
-  /* ---- bookmark: a plate in the pavement, and an umbrella over it ---- */
+  /* ---- bookmark: a ring on the roof, filled when marked ---- */
   .bm {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: center;
-    justify-self: start;   /* sits on the pavement, not out in the road */
-    width: 34px;
-    height: 34px;
+    flex: none;
+    width: 30px;
+    height: 30px;
     padding: 0;
     background: none;
     border: none;
@@ -216,29 +216,31 @@
     justify-content: center;
   }
 
+  /* unmarked: an outline in whatever colour the text beside it is */
   .bm::after {
     content: "";
     box-sizing: border-box;
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    background: var(--manhole);
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--roof-ink);
   }
 
+  /* marked: taxi yellow, the same in both scenes */
   .bm.on::after {
-    width: 25px;
-    height: 25px;
-    background: var(--umbrella);
+    background: var(--mark);
+    box-shadow: none;
   }
 
-  .empty { padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+  .empty { margin-right: 96px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
 
   /* ---- maps ---- */
   .map-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0;
+    margin: 0 96px 0 0;
     padding: 10px 11px;
     background: var(--chrome);
   }
@@ -640,11 +642,13 @@
     return `
       <div class="entry" style="--roof:${sk.roof};--roof-ink:${sk.ink}">
         <div class="entry-main">
-          <a class="title" href="${escapeHTML(show.share_url || "")}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
-          <div class="sub">${galleryLine}</div>
-          ${show.summary ? `<div class="sub summary">${escapeHTML(show.summary)}</div>` : ""}
+          <div class="entry-text">
+            <a class="title" href="${escapeHTML(show.share_url || "")}" target="_blank" rel="noopener">${escapeHTML(combinedTitle)}</a>
+            <div class="sub">${galleryLine}</div>
+            ${show.summary ? `<div class="sub summary">${escapeHTML(show.summary)}</div>` : ""}
+          </div>
+          <button class="bm" type="button" data-id="${show.id}" aria-pressed="false" aria-label="Bookmark this show"></button>
         </div>
-        <button class="bm" type="button" data-id="${show.id}" aria-pressed="false" aria-label="Bookmark this show"></button>
       </div>`;
   }
 
@@ -1181,24 +1185,24 @@
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
-      density: { walkers: 30, cars: 6, fieldWalkers: 22 },
+      density: { walkers: 46, cars: 6 },
       night: true,
     },
     day: {
       cloud: "#EDEBE6", glow: null, land: "#DED8D3", landBlock: "#BFB8B2",
       void: "#8E8A8C", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
-      glass: "#16151A", paint: "#B6B2B0",
+      glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
       head: null, tail: null, gallery: null,
-      density: { walkers: 11, cars: 4, fieldWalkers: 9 },
+      density: { walkers: 18, cars: 4 },
       night: false,
     },
   };
 
   let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
-  let walkers = [], avCars = [], avParkA = [], avParkB = [], fieldWalkers = [], slabs = [];
+  let peds = [], avCars = [], avParkA = [], avParkB = [], slabs = [];
   let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1254,30 +1258,24 @@
   function populate() {
     const S = SCENE[sceneKind], g = geom(), H = innerHeight;
 
-    walkers = [];
+    peds = [];
     for (let i = 0; i < S.density.walkers; i++) {
-      const v = M(rnd(1.1, 1.6));
-      walkers.push({ y: rnd(-40, H + 40), lane: (Math.random() * LANES) | 0, lx: 0,
-                     dir: Math.random() < 0.5 ? 1 : -1, speed: v, base: v,
-                     r: PED_R, color: pick(S.coats), hold: 0 });
+      const v = M(rnd(1.1, 1.6)), lane = (Math.random() * LANES) | 0;
+      peds.push({ axis: "v", x: laneX(g, lane), y: rnd(-40, H + 40), lane,
+                  dir: Math.random() < 0.5 ? 1 : -1, speed: v, base: v,
+                  r: PED_R, color: pick(S.coats), hold: 0 });
     }
     if (S.night) for (let k = 0; k < 4; k++) {
       const y = rnd(0, H), lane = (Math.random() * LANES) | 0;
       for (let m = 0, n = 2 + ((Math.random() * 3) | 0); m < n; m++)
-        walkers.push({ y: y + rnd(-9, 9), lane, lx: 0, dir: 0, speed: 0, base: 0,
-                       r: PED_R, color: pick(S.coats), hold: Infinity });
+        peds.push({ axis: "v", x: laneX(g, lane), y: y + rnd(-9, 9), lane, dir: 0,
+                    speed: 0, base: 0, r: PED_R, color: pick(S.coats), hold: Infinity });
     }
-    walkers.forEach(w => { w.lx = laneX(g, w.lane); });
 
     avCars = [];
     for (let i = 0; i < S.density.cars; i++) avCars.push(makeCar(S, rnd(-200, H + 200)));
     avParkA = parkRow(S, H);
     avParkB = parkRow(S, H);
-
-    fieldWalkers = [];
-    for (let i = 0; i < S.density.fieldWalkers; i++)
-      fieldWalkers.push({ x: rnd(0, g.fieldW), y: rnd(0, H), dir: Math.random() < 0.5 ? 1 : -1,
-                          speed: M(rnd(1.1, 1.6)), r: PED_R, color: pick(S.coats) });
 
     crossStreets.clear();
     buildSlabs(S);
@@ -1288,7 +1286,7 @@
   function crossFor(key, S, W) {
     let c = crossStreets.get(key);
     if (!c) {
-      c = { cars: [], parkT: [], parkB: [], peds: [], occ: null };
+      c = { cars: [], parkT: [], parkB: [], occ: null };
       for (let i = 0; i < 3; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: M(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = rnd(-80, 20);
@@ -1297,38 +1295,61 @@
           else x += rnd(44, 110);
         }
       }
-      for (let i = 0; i < 7; i++)
-        c.peds.push({ x: rnd(0, W), side: Math.random() < .5 ? 0 : 1, off: rnd(7, 27),
-                      dir: Math.random() < .5 ? 1 : -1, speed: M(rnd(1.1, 1.6)),
-                      r: PED_R, color: pick(S.coats) });
       crossStreets.set(key, c);
     }
     return c;
   }
 
   // ---- movement ----------------------------------------------------
-  function stepWalkers(dt, g, H) {
-    for (const w of walkers) {
+  // One population on one pavement network. A walker runs up or down the
+  // avenue until it reaches a corner, turns along the cross street's pavement,
+  // walks the block, turns back, and rejoins the avenue. Nothing is ever
+  // removed and respawned, so the lines of people stay continuous.
+  function stepWalkers(dt, g, H, boxes) {
+    for (const w of peds) {
       if (w.hold === Infinity) continue;
-      let limit = w.base, blocked = false;
-      for (const o of walkers) {
-        if (o === w) continue;
-        const dy = (o.y - w.y) * w.dir;
-        if (dy < 0 || dy > 60 || Math.abs(o.lx - w.lx) > 8) continue;
-        if (o.dir === w.dir && o.hold !== Infinity) { if (dy < 26) limit = Math.min(limit, o.speed * .92); }
-        else if (dy < 40) blocked = true;
+
+      if (w.axis === "v") {
+        let limit = w.base, blocked = false;
+        for (const o of peds) {
+          if (o === w || o.axis !== "v") continue;
+          const dy = (o.y - w.y) * w.dir;
+          if (dy < 0 || dy > 60 || Math.abs(o.x - w.x) > 8) continue;
+          if (o.dir === w.dir && o.hold !== Infinity) { if (dy < 26) limit = Math.min(limit, o.speed * .92); }
+          else if (dy < 40) blocked = true;
+        }
+        if (blocked) {
+          const t = w.lane === 0 ? 1 : 0, tx = laneX(g, t);
+          if (!peds.some(o => o !== w && o.axis === "v" && Math.abs(o.x - tx) < 8 && Math.abs(o.y - w.y) < 24)) w.lane = t;
+          limit = Math.min(limit, w.base * .45);
+        }
+        const tx = laneX(g, w.lane);
+        w.x += Math.max(-42 * dt, Math.min(42 * dt, tx - w.x));
+        w.speed += (limit - w.speed) * Math.min(1, dt * 3);
+        w.y += w.dir * w.speed * dt;
+        if (w.y < -60) w.y = H + 60;
+        if (w.y > H + 60) w.y = -60;
+
+        for (const b of boxes) {                      // a corner to turn at
+          const onNear = w.y > b.top + 4 && w.y < b.top + WALK_W - 4;
+          const onFar = w.y > b.roadBot + 4 && w.y < b.roadBot + WALK_W - 4;
+          if (!onNear && !onFar) continue;
+          if (Math.random() > 1.5 * dt) continue;
+          w.axis = "h"; w.dir = -1;                   // head off down the block
+          break;
+        }
+      } else {
+        w.speed += (w.base - w.speed) * Math.min(1, dt * 3);
+        w.x += w.dir * w.speed * dt;
+        if (w.dir > 0 && w.x > g.walkX + 9) {         // back at the avenue
+          w.axis = "v";
+          w.lane = (Math.random() * LANES) | 0;
+          w.x = laneX(g, w.lane);
+          w.dir = Math.random() < .5 ? 1 : -1;
+        } else if (w.dir < 0 && w.x < 8) {
+          w.dir = 1;                                  // end of the block, turn back
+        }
       }
-      if (blocked) {
-        const t = w.lane === 0 ? 1 : 0, tx = laneX(g, t);
-        if (!walkers.some(o => o !== w && Math.abs(o.lx - tx) < 8 && Math.abs(o.y - w.y) < 24)) w.lane = t;
-        limit = Math.min(limit, w.base * .45);
-      }
-      const tx = laneX(g, w.lane);
-      w.lx += Math.max(-42 * dt, Math.min(42 * dt, tx - w.lx));
-      w.speed += (limit - w.speed) * Math.min(1, dt * 3);
-      w.y += w.dir * w.speed * dt;
-      if (w.y < -60) w.y = H + 60;
-      if (w.y > H + 60) w.y = -60;
     }
   }
 
@@ -1345,7 +1366,12 @@
     for (const el of document.querySelectorAll(".date-head")) {
       const r = el.getBoundingClientRect();
       if (r.bottom < -160 || r.top > innerHeight + 160) continue;
-      const shift = Math.max(-40, Math.min(40, -(1 - PARALLAX) * r.top));
+      // Zero at the middle of the screen, so a building sits squarely on its
+      // own street where you are actually looking. Above and below, the planes
+      // separate by the parallax difference and overlap a little — that is
+      // what being nearer the camera looks like. No clamp: the clamp is what
+      // made the gap stop widening and start dragging the street with it.
+      const shift = -(1 - PARALLAX) * (r.top - innerHeight / 2);
       const top = r.top + shift;
       out.push({ el, key: el.textContent.trim(), shift, top,
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
@@ -1430,50 +1456,8 @@
             return best;
           });
     for (const c of avCars) if (c.y > H + 220) c.y = -220 - Math.random() * 200;
-    for (const f of fieldWalkers) {
-      f.x += f.dir * f.speed * dt;
-      if (f.x < -10) f.x = g.fieldW + 10;
-      if (f.x > g.fieldW + 10) f.x = -10;
-    }
   }
 
-  // People turn at the corner instead of walking on through the junction.
-  // The avenue's list and each cross street's list hand walkers back and
-  // forth, so it is one population on one pavement network rather than two
-  // sets of people that happen to look alike.
-  function turnPeds(dt, g, S) {
-    const boxes = intersections();
-    if (!boxes.length) return;
-
-    if (walkers.length > 14) for (let i = walkers.length - 1; i >= 0; i--) {
-      const w = walkers[i];
-      if (w.hold === Infinity) continue;
-      for (const b of boxes) {
-        if (w.y < b.roadTop - 2 || w.y > b.roadBot + 2) continue;
-        if (Math.random() > 1.1 * dt) continue;          // most carry straight on
-        const st = crossFor(b.key, S, g.fieldW);
-        st.peds.push({ x: g.walkX - 8, side: Math.random() < .5 ? 0 : 1,
-                       off: rnd(7, WALK_W - 7), dir: -1, speed: w.speed,
-                       r: PED_R, color: w.color });
-        walkers.splice(i, 1);
-        break;
-      }
-    }
-
-    for (const b of boxes) {
-      const st = crossStreets.get(b.key);
-      if (!st) continue;
-      for (let i = st.peds.length - 1; i >= 0; i--) {
-        const p = st.peds[i];
-        if (p.dir < 0 || p.x < g.walkX - 10) continue;   // reached the corner
-        const lane = (Math.random() * LANES) | 0;
-        walkers.push({ y: b.top + (p.side ? CROSS_H - 10 : 10), lane, lx: laneX(g, lane),
-                       dir: Math.random() < .5 ? 1 : -1, speed: p.speed, base: p.speed,
-                       r: PED_R, color: p.color, hold: 0 });
-        st.peds.splice(i, 1);
-      }
-    }
-  }
 
   function stepCross(dt, g, W) {
     for (const b of intersections()) {
@@ -1484,10 +1468,6 @@
             (c) => (st.occ && st.occ.car === c) || (c.x + c.spec.len > g.walkX - 3)
                      ? Infinity : g.walkX - 4);
       for (const c of st.cars) if (c.x > g.fieldW + 60) c.x = -220 - Math.random() * 160;
-      for (const p of st.peds) {
-        p.x += p.dir * p.speed * dt;
-        if (p.x < -30) p.x = g.walkX - 12;     // back in at the corner
-      }
     }
   }
 
@@ -1527,17 +1507,16 @@
   // top of its band — pavement, parking, one lane, parking, pavement. Nothing
   // about it moves with the perspective; the building simply overlaps more or
   // less of it, which is what reads as depth.
-  function drawCross(g, b, S) {
-    const st = crossFor(b.key, S, g.fieldW);
-    const bl = R(g.walkX);                         // the building line
-    const thru = R(g.roadX) + ROAD_W;              // far kerb of the avenue
+  // A junction is one piece of ground, so it is drawn in layers across both
+  // streets at once rather than each street painting over the other: all the
+  // surfaces, then all the paint, then all the parked cars, then everything
+  // moving. That is what stops the horizontal street burying the vertical
+  // traffic passing under it.
+  function drawCrossSurface(g, b, S) {
+    const bl = R(g.walkX), thru = R(g.roadX) + ROAD_W;
     const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
-
-    // the carriageway runs all the way through the junction, so traffic does
-    // not disappear behind the corner
     cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
-
-    cx.save();                                     // pavements stop at the corner
+    cx.save();
     cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
     for (const s of slabs) {
       cx.fillStyle = s.c;
@@ -1546,28 +1525,29 @@
       cx.fillRect(sx, roadBot, sw, WALK_W);
     }
     cx.restore();
+  }
 
-    cx.save();
-    cx.beginPath(); cx.rect(0, top, thru, CROSS_H); cx.clip();
-
-    // paint goes down before anything drives over it
-    cx.fillStyle = S.paint;
-    for (let i = 0; i < 5; i++) {
-      const y = roadTop + 3 + i * 12;
-      if (y + 7 < roadBot) cx.fillRect(bl - 24, y, 20, 7);
+  // Bars centred in the carriageway they cross, sitting against the corner.
+  function bars(x, y, along, across, vertical, colour) {
+    const BAR = 8, GAP = 5;
+    const n = Math.max(1, Math.floor((across + GAP) / (BAR + GAP)));
+    const run = n * BAR + (n - 1) * GAP;
+    const start = Math.round((across - run) / 2);
+    cx.fillStyle = colour;
+    for (let i = 0; i < n; i++) {
+      const o = start + i * (BAR + GAP);
+      if (vertical) cx.fillRect(x + o, y, BAR, along);
+      else cx.fillRect(x, y + o, along, BAR);
     }
+  }
 
-    const laneY = roadTop + PARK_W;
-    for (const p of st.parkT) vehH(roadTop, R(p.x + p.spec.len), p.spec, p.color, S.glass);
-    for (const p of st.parkB) vehH(roadBot - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
-    if (S.night) for (const c of st.cars) {
-      beam(R(c.x + c.spec.len), laneY, 46, R(c.spec.wide), S.head, "right", .5);
-      beam(R(c.x) - 26, laneY, 26, R(c.spec.wide), S.tail, "left", .32);
-    }
-    for (const c of st.cars) vehH(laneY, R(c.x + c.spec.len), c.spec, c.color, S.glass);
-    for (const p of st.peds)
-      disc(R(p.x), R(p.side ? b.roadBot + p.off - 4 : b.top + p.off), p.r, p.color);
-    cx.restore();
+  function drawCrossPaint(g, b, S) {
+    const bl = R(g.walkX), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
+    // across the cross street, right at the corner of the pavement
+    bars(bl - 24, roadTop, 20, ROAD_W, false, S.paint);
+    // across the avenue, one either side of the junction, flush to the corner
+    bars(R(g.roadX), roadTop - 20, 20, ROAD_W, true, S.paint);
+    bars(R(g.roadX), roadBot, 20, ROAD_W, true, S.paint);
   }
 
   function draw(par) {
@@ -1575,31 +1555,32 @@
 
     if (sceneMode === "clouds") {
       cx.fillStyle = S.cloud; cx.fillRect(0, 0, W, H);
-      drawMapGlow(S);   // the opening is the brightest thing up here
+      drawMapGlow(S);
       return;
     }
 
-    const g = geom();
+    const g = geom(), boxes = intersections();
+
+    // 1 — surfaces
     cx.fillStyle = S.void; cx.fillRect(0, 0, W, H);
     cx.fillStyle = S.asphalt; cx.fillRect(0, 0, R(g.fieldW), H);
     cx.fillStyle = S.avenue; cx.fillRect(R(g.roadX), 0, ROAD_W, H);
-
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
       for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), R(base + s.y), WALK_W, R(s.h) + 1); }
     }
-
-    const boxes = intersections();
-    // the pavement stops at a junction; the cross street runs through it
-    for (const b of boxes) {
+    for (const b of boxes) drawCrossSurface(g, b, S);
+    for (const b of boxes) {                       // pavement stops at a junction
       cx.fillStyle = S.avenue;
       cx.fillRect(R(g.walkX), R(b.roadTop), WALK_W, ROAD_W);
     }
 
+    // 2 — paint, before anything drives over it
+    for (const b of boxes) drawCrossPaint(g, b, S);
+
+    // 3 — light, before any traffic, so no beam lands on a car
     if (S.night) {
-      // Gallery light stops at the kerb — it falls on the pavement, not the
-      // road — and never inside a junction, where there is no gallery.
       for (let t = -TILE; t < H + TILE; t += TILE) {
         const base = t - off;
         for (let k = 0; k < 6; k++) {
@@ -1608,28 +1589,42 @@
           beam(R(g.walkX), y, WALK_W, 34, S.gallery, "right", .5);
         }
       }
-      for (const c of avCars) {                    // exactly the car's own width
+      for (const c of avCars) {
         const cw = R(c.spec.wide);
         beam(R(g.lane), R(c.y + c.spec.len), cw, 54, S.head, "down", .5);
         beam(R(g.lane), R(c.y) - 30, cw, 30, S.tail, "up", .38);
       }
-    }
-
-    cx.fillStyle = S.paint;                        // paint first, then traffic
-    for (const b of boxes) for (let i = 0; i < 5; i++) {
-      const x = R(g.roadX) + 3 + i * 12;
-      if (x + 7 < R(g.roadX) + ROAD_W) {
-        cx.fillRect(x, R(b.roadTop) - 26, 7, 20);
-        cx.fillRect(x, R(b.roadBot) + 6, 7, 20);
+      for (const b of boxes) {
+        const st = crossStreets.get(b.key); if (!st) continue;
+        const laneY = R(b.roadTop) + PARK_W;
+        for (const c of st.cars) {
+          beam(R(c.x + c.spec.len), laneY, 46, R(c.spec.wide), S.head, "right", .5);
+          beam(R(c.x) - 26, laneY, 26, R(c.spec.wide), S.tail, "left", .32);
+        }
       }
     }
-    for (const p of avParkA) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
-    for (const p of avParkB) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
-    for (const c of avCars) vehV(R(g.lane), R(c.y + c.spec.len), c.spec, c.color, S.glass);
 
-    for (const b of boxes) drawCross(g, b, S);
-    for (const f of fieldWalkers) disc(f.x, f.y, f.r, f.color);
-    for (const w of walkers) disc(w.lx, w.y, w.r, w.color);
+    // 4 — parked. Nobody parks in a junction or on a crossing.
+    const blockedV = (y, len) => boxes.some(b => y + len > b.roadTop - 26 && y < b.roadBot + 26);
+    for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
+    for (const p of avParkB) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
+    for (const b of boxes) {
+      const st = crossStreets.get(b.key); if (!st) continue;
+      const stop = g.walkX - 26;
+      for (const p of st.parkT) if (p.x + p.spec.len < stop) vehH(R(b.roadTop), R(p.x + p.spec.len), p.spec, p.color, S.glass);
+      for (const p of st.parkB) if (p.x + p.spec.len < stop) vehH(R(b.roadBot) - PARK_W, R(p.x + p.spec.len), p.spec, p.color, S.glass);
+    }
+
+    // 5 — everything moving, both directions on the same layer
+    for (const c of avCars) vehV(R(g.lane), R(c.y + c.spec.len), c.spec, c.color, S.glass);
+    for (const b of boxes) {
+      const st = crossStreets.get(b.key); if (!st) continue;
+      const laneY = R(b.roadTop) + PARK_W;
+      for (const c of st.cars) vehH(laneY, R(c.x + c.spec.len), c.spec, c.color, S.glass);
+    }
+
+    // 6 — people
+    for (const p of peds) disc(R(p.x), R(p.y), p.r, p.color);
   }
 
   function frame(t) {
@@ -1640,18 +1635,16 @@
     if (!reduceMotion) {
       const g = geom(), H = innerHeight, W = innerWidth, dPar = par - lastPar;
       if (sceneMode === "street") {
-        for (const w of walkers) w.y -= dPar;
+        for (const w of peds) w.y -= dPar;
         for (const c of avCars) c.y -= dPar;
         for (const row of [avParkA, avParkB]) for (const p of row) {
           p.y -= dPar;
           if (p.y < -200) p.y += H + 400;
           if (p.y > H + 200) p.y -= H + 400;
         }
-        for (const f of fieldWalkers) f.y -= dPar;
-        stepWalkers(dt, g, H);
+        stepWalkers(dt, g, H, intersections());
         stepAvenue(dt, g, H);
         stepCross(dt, g, W);
-        turnPeds(dt, g, SCENE[sceneKind]);
       }
     }
     lastPar = par;
@@ -1670,7 +1663,7 @@
   function sceneSetKind(kind, mode) {
     sceneMode = mode || "street";
     document.documentElement.setAttribute("data-mode", sceneMode);
-    if (kind === sceneKind && walkers.length) return;
+    if (kind === sceneKind && peds.length) return;
     sceneKind = kind;
     document.documentElement.setAttribute("data-scene", kind);
     populate();
