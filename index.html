@@ -345,8 +345,8 @@
   .dot::after {
     content: "";
     box-sizing: border-box;
-    width: var(--ped-d, 8px);
-    height: var(--ped-d, 8px);
+    width: var(--dot-d, 11px);
+    height: var(--dot-d, 11px);
     border-radius: 50%;
     background: var(--dot-face, #000);
   }
@@ -354,11 +354,12 @@
   /* bookmarked reads yellow on the map, as before */
   .dot.on::after { background: var(--bookmark); }
 
+  /* where you are is a dot like any other, so it is drawn like one */
   .me {
     position: absolute;
-    width: 15px;
-    height: 15px;
-    margin: -7.5px 0 0 -7.5px;
+    width: var(--dot-d, 11px);
+    height: var(--dot-d, 11px);
+    margin: calc(var(--dot-d, 11px) / -2) 0 0 calc(var(--dot-d, 11px) / -2);
     border-radius: 50%;
     background: var(--location);
     pointer-events: none;
@@ -969,7 +970,7 @@
       const label = dot.nextElementSibling;
       if (label && label.classList.contains("dot-label")) {
         label.style.left = x + "px";
-        label.style.top = (y + PED_R + 3) + "px";
+        label.style.top = (y + DOT_D / 2 + 3) + "px";
       }
     }
     // labels always show — no crowding/collision hiding
@@ -1228,9 +1229,16 @@
 
   // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either side
   // of an 11 ft lane. Taken from metres so the whole street scales off PX_PER_M.
+  //
+  // The carriageway and the traffic on it are drawn a quarter over life size
+  // against the pavement beside them. A lane in true proportion to a 24px
+  // pavement leaves a car thirteen pixels across, which is not enough for it
+  // to read as a car; the pavement and the people on it need no such help.
+  const ROAD_X = 1.25;
+  const MR = (m) => m * PX_PER_M * ROAD_X;
   const WALK_W = Math.round(M(3.8));     // 12 ft
-  const PARK_W = Math.round(M(2.6));     // 8 ft
-  const LANE_W = Math.round(M(3.3));     // 11 ft
+  const PARK_W = Math.round(MR(2.6));    // 8 ft
+  const LANE_W = Math.round(MR(3.3));    // 11 ft
   const AV_ROAD = PARK_W + LANE_W;
   // Narrower than the street it shows, so the far side of the driving lane is
   // cropped by the edge of the screen and the listings get the width instead.
@@ -1238,6 +1246,7 @@
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = 4;                   // every person the same size
   const CORNER = PED_R * 2;          // no shopfront closer than this to a corner
+  const DOT_D = 11;                  // a gallery on the map: a shade over a person
   const ROAD_W = PARK_W * 2 + LANE_W;    // the cross street shows its full section
   const CROSS_H = WALK_W * 2 + ROAD_W;
   const TILE = 900;
@@ -1251,18 +1260,19 @@
   rootStyle.setProperty("--cross-h", CROSS_H + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
   rootStyle.setProperty("--ped-d", PED_R * 2 + "px");
+  rootStyle.setProperty("--dot-d", DOT_D + "px");
 
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
-  const CAR_W = Math.round(M(2.1));      // 2.1 m, every vehicle
+  const CAR_W = Math.round(MR(2.1));     // 2.1 m, every vehicle
   // len, then the glass as fractions of it: bonnet before the windscreen,
   // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
-    { len: M(4.6), hood: .26, glass: .13, rear: .72, rearH: .10 },
-    { len: M(4.4), hood: .25, glass: .13, rear: .71, rearH: .10 },
-    { len: M(4.9), hood: .22, glass: .14, rear: .78, rearH: .12 },
-    { len: M(5.4), hood: .14, glass: .13, rear: .86, rearH: .08 },
-    { len: M(7.0), hood: .10, glass: .09, rear: 0,   rearH: 0, body: .24 },
+    { len: MR(4.6), hood: .26, glass: .13, rear: .72, rearH: .10 },
+    { len: MR(4.4), hood: .25, glass: .13, rear: .71, rearH: .10 },
+    { len: MR(4.9), hood: .22, glass: .14, rear: .78, rearH: .12 },
+    { len: MR(5.4), hood: .14, glass: .13, rear: .86, rearH: .08 },
+    { len: MR(7.0), hood: .10, glass: .09, rear: 0,   rearH: 0, body: .24 },
   ];
   const MIX = [0, 0, 0, 1, 1, 2, 2, 3, 4];
 
@@ -1352,7 +1362,7 @@
   // reads as a crowd, which is what the cross streets already looked like.
   function makeCar(S, y) {
     const v = spec();
-    return { y, spec: v, speed: M(rnd(6.7, 9.4)), color: pick(S.cars), stopped: false };
+    return { y, spec: v, speed: MR(rnd(6.7, 9.4)), color: pick(S.cars), stopped: false };
   }
 
   // Pavement drifts between its three tones in long even runs broken by short
@@ -1429,7 +1439,7 @@
     if (!c) {
       const d = S.density;
       c = { cars: [], parkT: [], parkB: [], occ: null, lights: [] };
-      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: M(rnd(6.7, 9.4)), color: pick(S.cars) });
+      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = rnd(-80, 20);
         while (x < W) {
@@ -1588,7 +1598,7 @@
   // Bumper to bumper only at a standstill. Moving traffic keeps roughly
   // three-quarters of a second of headway, so the gap opens as a car speeds
   // up and closes only as it slows to a stop.
-  const GAP_STOP = M(1.4);
+  const GAP_STOP = MR(1.4);
   const HEADWAY = 0.75;
   const gapFor = (c) => GAP_STOP + (c.speed || 0) * HEADWAY;
 
@@ -1613,13 +1623,28 @@
   // junction is clear of it.
   const STOP_DWELL = 0.4;   // you have to actually stop, not roll through
 
+  // Somebody on the crossing stops the traffic that would drive over them.
+  // Only the lane matters — a driver waits for the person in front of the car,
+  // not for one still on the far pavement — and only the cross street has a
+  // crossing anyone stands on: the avenue's is on the pavement that nobody
+  // ever steps off.
+  function onCrossing(b) {
+    const lane = b.roadTop + PARK_W;
+    for (const w of peds)
+      if (w.axis === "v" && w.y + PED_R > lane - 2 && w.y - PED_R < lane + CAR_W + 2) return true;
+    return false;
+  }
+
   function control(st, b, g) {
     if (st.occ) {
       const c = st.occ.car;
       // clear means past the far crossing, not merely out of the carriageway
       const clear = st.occ.side === "av" ? c.y > b.bot + 2 : c.x > g.edge + 2;
       const gone = st.occ.side === "av" ? !avCars.includes(c) : !st.cars.includes(c);
-      if (clear || gone) st.occ = null; else return;
+      // and a car held at the line by people on the crossing is not using the
+      // junction, so it gives it up rather than blocking the avenue with it
+      const stuck = st.occ.side === "cr" && b.blocked && c.x + c.spec.len < g.walkX - 3;
+      if (clear || gone || stuck) st.occ = null; else return;
     }
     let best = null;
     const consider = (car, t, side) => { if (!best || t < best.t) best = { t, side, car }; };
@@ -1630,6 +1655,7 @@
       if (clock - c.waits[b.key] >= STOP_DWELL) consider(c, c.waits[b.key], "av");
     }
     for (const c of st.cars) {
+      if (b.blocked) break;                       // it could not go anyway
       if (Math.abs((c.x + c.spec.len) - (g.walkX - 4)) > 2) continue;
       if (c.waitAt == null) c.waitAt = clock;
       if (clock - c.waitAt >= STOP_DWELL) consider(c, c.waitAt, "cr");
@@ -1640,15 +1666,22 @@
     }
   }
 
+  // Whether a car has committed to a junction is read from where it was
+  // before this frame moved it, never from where it is now. A car held at the
+  // line sits exactly on it, and the step forward that happens before the
+  // queue runs carries it a whole pixel past — at which point it looks
+  // committed and is waved through. A pixel used to be more than one frame of
+  // travel; at this scale it is not.
   function stepAvenue(dt, g, H, boxes) {
-    for (const b of boxes) control(b.st, b, g);
+    for (const b of boxes) { b.blocked = onCrossing(b); control(b.st, b, g); }
+    const was = new Map(avCars.map(c => [c, c.y + c.spec.len]));
     for (const c of avCars) c.y += c.speed * dt;
     queue(avCars, "y", (c) => {
             let best = Infinity;
             for (const b of boxes) {
               const st = b.st;
               const line = b.top - 2;          // behind the crossing, not on it
-              if (c.y + c.spec.len > line + 1) continue;   // already at or in the box
+              if (was.get(c) > line) continue;             // already at or in the box
               if (st.occ && st.occ.car === c) continue;    // it is this car's turn
               best = Math.min(best, line);
             }
@@ -1661,9 +1694,12 @@
   function stepCross(dt, g, boxes) {
     for (const b of boxes) {
       const st = b.st;
+      // already on the crossing: finish crossing it rather than stop on it
+      const past = new Set(st.cars.filter(c => c.x + c.spec.len > g.walkX - 4));
       for (const c of st.cars) c.x += c.speed * dt;
-      queue(st.cars, "x", (c) => (st.occ && st.occ.car === c) || (c.x + c.spec.len > g.walkX - 3)
-                                   ? Infinity : g.walkX - 4);
+      queue(st.cars, "x", (c) => past.has(c) ? Infinity
+                               : b.blocked || !(st.occ && st.occ.car === c) ? g.walkX - 4
+                               : Infinity);
       for (const c of st.cars) if (c.x > g.edge + 40) c.x = -220 - Math.random() * 160;
     }
   }
