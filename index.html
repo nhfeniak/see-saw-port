@@ -101,7 +101,7 @@
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
-    margin: 0 104px 0 0;   /* same width as a roof — it must not cover the street */
+    margin: 0 84px 0 0;   /* same width as a roof — it must not cover the street */
     padding: 4px 11px;
   }
 
@@ -171,7 +171,7 @@
   .entry {
     display: grid;
     /* the second column IS the street; keep it equal to GUTTER in script */
-    grid-template-columns: 1fr 104px;
+    grid-template-columns: 1fr 84px;
   }
 
   /* one building, one flat colour, as tall as its own text needs */
@@ -233,29 +233,36 @@
     box-shadow: none;
   }
 
-  .empty { margin-right: 104px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
+  .empty { margin-right: 84px; padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
 
   /* Above the clouds there is no street to leave room for and nothing to
      stand on, so the interface is just text across the full width. */
   :root[data-mode="clouds"] .meta,
   :root[data-mode="clouds"] nav.top,
   :root[data-mode="clouds"] .tabs,
-  :root[data-mode="clouds"] .map-controls,
   :root[data-mode="clouds"] .empty {
     margin-right: 0;
     background: none;
   }
 
+  /* the listings under a map have no street beside them either */
+  :root[data-mode="clouds"] .entry { grid-template-columns: 1fr; }
+  :root[data-mode="clouds"] .entry-main { padding-right: 11px; }
+
   :root[data-mode="clouds"] .map-controls button { background: var(--chrome2); }
 
   /* ---- maps ---- */
   .map-controls {
+    position: absolute;
+    left: 32px;
+    bottom: 42px;
+    z-index: 3;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 104px 0 0;
-    padding: 10px 11px;
-    background: var(--chrome);
+    margin: 0;
+    padding: 0;
+    background: none;
   }
 
   .map-controls button {
@@ -845,11 +852,11 @@
           ${userLoc ? `<div class="me" data-x="${lonToSvgX(userLoc.lon)}" data-y="${latToSvgY(userLoc.lat)}"></div>` : ""}
         </div>
       </div>
-      </div>
       <div class="map-controls">
         <button id="zoomOut" aria-label="zoom out">&minus;</button>
         <button id="zoomIn" aria-label="zoom in">+</button>
         <button id="locate" class="loc" aria-label="show my location"></button>
+      </div>
       </div>
       <div class="entries maplist" id="maplist"></div>
     `;
@@ -1169,23 +1176,30 @@
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
   const FACADE_RATIO = ROOF_H_M / (CAM_H_M - ROOF_H_M);
 
-  const GUTTER = 104;
   // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either
   // side of an 11 ft lane, 52 ft building line to building line.
   const WALK_W = 32;                 // 3.8 m / 12 ft
   const PARK_W = 22, LANE_W = 28;    // 2.6 m / 8 ft and 3.3 m / 11 ft
+  // The avenue runs off the right of the screen, so only the near kerb's
+  // parking is on it — the far row was mostly cut off anyway and was costing
+  // the listings twenty pixels.
+  const AV_ROAD = PARK_W + LANE_W;   // 50
+  const GUTTER = WALK_W + AV_ROAD + 2;
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = 4;                   // every person the same size
-  const ROAD_W = PARK_W * 2 + LANE_W;
-  const CROSS_H = WALK_W * 2 + ROAD_W;   // 116px: the fixed cross-street section
+  const ROAD_W = PARK_W * 2 + LANE_W;    // the cross street shows its full section
+  const CROSS_H = WALK_W * 2 + ROAD_W;
   const TILE = 900;
 
+  // One width for everything. Real vehicles vary by half a metre, but at this
+  // scale that is two pixels of difference buying nothing but ragged edges.
+  const CAR_W = 18;                  // 2.1 m
   const VEHICLES = [
-    { kind: "sedan", len: M(4.6), wide: M(1.8),  hood: .26, glass: .13, rear: .72, rearH: .10 },
-    { kind: "sedan", len: M(4.4), wide: M(1.75), hood: .25, glass: .13, rear: .71, rearH: .10 },
-    { kind: "suv",   len: M(4.9), wide: M(1.95), hood: .22, glass: .14, rear: .78, rearH: .12 },
-    { kind: "van",   len: M(5.4), wide: M(2.0),  hood: .14, glass: .13, rear: .86, rearH: .08 },
-    { kind: "truck", len: M(7.0), wide: M(2.35), hood: .10, glass: .09, rear: 0,  rearH: 0, body: .24 },
+    { kind: "sedan", len: M(4.6), wide: CAR_W, hood: .26, glass: .13, rear: .72, rearH: .10 },
+    { kind: "sedan", len: M(4.4), wide: CAR_W, hood: .25, glass: .13, rear: .71, rearH: .10 },
+    { kind: "suv",   len: M(4.9), wide: CAR_W, hood: .22, glass: .14, rear: .78, rearH: .12 },
+    { kind: "van",   len: M(5.4), wide: CAR_W, hood: .14, glass: .13, rear: .86, rearH: .08 },
+    { kind: "truck", len: M(7.0), wide: CAR_W, hood: .10, glass: .09, rear: 0,  rearH: 0, body: .24 },
   ];
   const MIX = [0, 0, 0, 1, 1, 2, 2, 3, 4];
 
@@ -1215,7 +1229,7 @@
   };
 
   let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
-  let peds = [], avCars = [], avParkA = [], avParkB = [], slabs = [];
+  let peds = [], avCars = [], avParkA = [], slabs = [];
   let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1229,8 +1243,7 @@
     const walkX = r.right - GUTTER;
     const roadX = walkX + WALK_W;
     return { walkX, roadX, fieldW: walkX,
-             parkA: roadX, lane: roadX + PARK_W, parkB: roadX + PARK_W + LANE_W,
-             roadEnd: roadX + ROAD_W };
+             parkA: roadX, lane: roadX + PARK_W, roadEnd: roadX + AV_ROAD };
   }
 
   const LANES = 2;
@@ -1288,7 +1301,6 @@
     avCars = [];
     for (let i = 0; i < S.density.cars; i++) avCars.push(makeCar(S, rnd(-200, H + 200)));
     avParkA = parkRow(S, H);
-    avParkB = parkRow(S, H);
 
     crossStreets.clear();
     buildSlabs(S);
@@ -1531,7 +1543,7 @@
   // moving. That is what stops the horizontal street burying the vertical
   // traffic passing under it.
   function drawCrossSurface(g, b, S) {
-    const bl = R(g.walkX), thru = R(g.roadX) + ROAD_W;
+    const bl = R(g.walkX), thru = innerWidth;
     const top = R(b.top), roadTop = R(b.roadTop), roadBot = R(b.roadBot);
     cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
     cx.save();
@@ -1548,11 +1560,14 @@
   // Bar and gap the same width, with a gap at each end so the pattern never
   // runs into the kerb: n bars and n+1 gaps across the carriageway, so the
   // unit is span / (2n + 1). Four bars across 72 px comes out at exactly 8.
-  const ZEBRA_N = 4;
+  // bar and gap equal, a gap at each end: n bars and n+1 gaps across the
+  // carriageway, so the unit is span / (2n + 1). n is chosen to land the unit
+  // nearest 8px for whatever width is being crossed.
   function zebra(x, y, across, along, barsRunDown, colour) {
-    const unit = across / (2 * ZEBRA_N + 1);
+    const n = Math.max(2, Math.round((across / 8 - 1) / 2));
+    const unit = across / (2 * n + 1);
     cx.fillStyle = colour;
-    for (let i = 0; i < ZEBRA_N; i++) {
+    for (let i = 0; i < n; i++) {
       const o = unit * (1 + 2 * i);
       if (barsRunDown) cx.fillRect(R(x + o), R(y), R(unit), R(along));
       else cx.fillRect(R(x), R(y + o), R(along), R(unit));
@@ -1565,8 +1580,9 @@
   // standing in one of the cross street's pavements.
   function drawCrossPaint(g, b, S) {
     zebra(g.walkX, b.roadTop, ROAD_W, WALK_W, false, S.paint);
-    zebra(g.roadX, b.top, ROAD_W, WALK_W, true, S.paint);
-    zebra(g.roadX, b.roadBot, ROAD_W, WALK_W, true, S.paint);
+    const av = innerWidth - g.roadX;               // the avenue, out to the edge
+    zebra(g.roadX, b.top, av, WALK_W, true, S.paint);
+    zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint);
   }
 
   function draw(par) {
@@ -1583,7 +1599,7 @@
     // 1 — surfaces
     cx.fillStyle = S.void; cx.fillRect(0, 0, W, H);
     cx.fillStyle = S.asphalt; cx.fillRect(0, 0, R(g.fieldW), H);
-    cx.fillStyle = S.avenue; cx.fillRect(R(g.roadX), 0, ROAD_W, H);
+    cx.fillStyle = S.avenue; cx.fillRect(R(g.roadX), 0, W - R(g.roadX), H);
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
@@ -1626,7 +1642,6 @@
     // 4 — parked. Nobody parks in a junction or on a crossing.
     const blockedV = (y, len) => boxes.some(b => y + len > b.top && y < b.bot);
     for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkA), R(p.y + p.spec.len), p.spec, p.color, S.glass);
-    for (const p of avParkB) if (!blockedV(p.y, p.spec.len)) vehV(R(g.parkB), R(p.y + p.spec.len), p.spec, p.color, S.glass);
     for (const b of boxes) {
       const st = crossStreets.get(b.key); if (!st) continue;
       const stop = g.walkX - 6;
@@ -1656,7 +1671,7 @@
       if (sceneMode === "street") {
         for (const w of peds) w.y -= dPar;
         for (const c of avCars) c.y -= dPar;
-        for (const row of [avParkA, avParkB]) for (const p of row) {
+        for (const p of avParkA) {
           p.y -= dPar;
           if (p.y < -200) p.y += H + 400;
           if (p.y > H + 200) p.y -= H + 400;
@@ -1692,7 +1707,15 @@
     cv = document.getElementById("scene");
     cx = cv.getContext("2d");
     sizeCanvas(); populate();
-    addEventListener("resize", () => { sizeCanvas(); populate(); }, { passive: true });
+    // A phone changes the viewport height whenever the address bar hides or
+    // shows, which is on every change of scroll direction. Rebuilding the
+    // street there restarted every car and every walker, so only a genuine
+    // change of width repopulates; a height change just resizes the canvas.
+    let lastW = innerWidth;
+    addEventListener("resize", () => {
+      sizeCanvas();
+      if (Math.abs(innerWidth - lastW) > 2) { lastW = innerWidth; populate(); }
+    }, { passive: true });
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
       if (performance.now() - lastT > 120) {
