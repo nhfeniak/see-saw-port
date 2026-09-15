@@ -174,7 +174,7 @@
     gap: 6px;
     background: var(--roof);
     color: var(--roof-ink);
-    padding: 9px 11px 10px;
+    padding: 9px 8px 10px 11px;   /* the bookmark's own box is the right margin */
   }
 
   .entry-text { flex: 1; min-width: 0; }
@@ -195,7 +195,7 @@
   /* ---- bookmark: a ring on the roof, filled when marked ---- */
   .bm {
     flex: none;
-    width: 30px;
+    width: 22px;      /* the ring is 15 of it: the rest is thumb, not margin */
     height: 30px;
     padding: 0;
     background: none;
@@ -1240,9 +1240,12 @@
   const PARK_W = Math.round(MR(2.6));    // 8 ft
   const LANE_W = Math.round(MR(3.3));    // 11 ft
   const AV_ROAD = PARK_W + LANE_W;
-  // Narrower than the street it shows, so the far side of the driving lane is
-  // cropped by the edge of the screen and the listings get the width instead.
-  const GUTTER = 38;
+  // The pavement column beside the roofs. On a wide screen there is space to
+  // the right of the listings and the street simply overhangs the column, so
+  // the roofs keep their width; on a phone there is none, and the column has
+  // to widen until the whole travel lane and a little air land on the screen.
+  const GUTTER_MIN = 38, STREET_AIR = 6;
+  let GUTTER = GUTTER_MIN;
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = 4;                   // every person the same size
   const CORNER = PED_R * 2;          // no shopfront closer than this to a corner
@@ -1256,7 +1259,13 @@
   // the numbers to CSS rather than repeating them there is what stops the two
   // drifting apart, which they have done twice.
   const rootStyle = document.documentElement.style;
-  rootStyle.setProperty("--gutter", GUTTER + "px");
+  function fitStreet() {
+    const el = document.getElementById("content");
+    const right = el ? el.getBoundingClientRect().right : Math.min(innerWidth, 640) - 12;
+    GUTTER = Math.max(GUTTER_MIN, Math.round(WALK_W + AV_ROAD + STREET_AIR - (innerWidth - right)));
+    rootStyle.setProperty("--gutter", GUTTER + "px");
+  }
+  fitStreet();
   rootStyle.setProperty("--cross-h", CROSS_H + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
   rootStyle.setProperty("--ped-d", PED_R * 2 + "px");
@@ -1265,6 +1274,11 @@
   // One width for everything. Real vehicles vary by half a metre, but at this
   // scale that is two pixels of difference buying nothing but ragged edges.
   const CAR_W = Math.round(MR(2.1));     // 2.1 m, every vehicle
+  // Where a moving car sits, measured from the near kerb: past the parked
+  // cars and then centred in what is left. The lane is centred in the road,
+  // so this puts it in the middle of the street as well. Both axes use it, so
+  // traffic running one way sits exactly as the traffic running the other does.
+  const LANE_OFF = PARK_W + Math.round((LANE_W - CAR_W) / 2);
   // len, then the glass as fractions of it: bonnet before the windscreen,
   // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
@@ -1353,7 +1367,7 @@
     const walkX = r.right - GUTTER;
     const roadX = walkX + WALK_W;
     return { walkX, roadX, fieldW: walkX,
-             parkA: roadX, lane: roadX + PARK_W,
+             parkA: roadX, lane: roadX + LANE_OFF,
              edge: roadX + AV_ROAD };        // past here there is nothing
   }
 
@@ -1593,9 +1607,14 @@
   // Rebuilt once a frame and passed around. It used to be recomputed by each
   // of the five things that needed it, which meant five passes over the DOM
   // and — worse — no guarantee they all saw the same numbers.
-  function intersections() {
-    const out = [], S = SCENE[sceneKind], W = geom().fieldW;
-    for (const el of document.querySelectorAll(".date-head")) {
+  // The headings change only when the page is rendered, so the list is kept
+  // rather than asked for sixty times a second, and the width comes in from
+  // the one measurement the frame already took.
+  let headEls = [];
+
+  function intersections(g) {
+    const out = [], S = SCENE[sceneKind], W = g.fieldW;
+    for (const el of headEls) {
       const r = el.getBoundingClientRect();
       if (r.bottom < -160 || r.top > sceneH + 160) continue;
       // Zero at the middle of the screen, so a building sits squarely on its
@@ -1725,14 +1744,28 @@
   const disc = (x, y, r, c) => { cx.fillStyle = c; cx.beginPath(); cx.arc(x, y, r, 0, 6.2832); cx.fill(); };
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
+  // Forty of these are thrown every frame and only a handful are ever
+  // different: a light is its direction, its size, its colour and its
+  // strength, and where it falls is a translation. Built in its own corner
+  // once and moved into place, rather than built again wherever it lands.
+  let beams = new Map();
+
   function beam(x, y, w, h, colour, dir, s) {
-    const G = dir === "down"  ? cx.createLinearGradient(0, y, 0, y + h)
-            : dir === "up"    ? cx.createLinearGradient(0, y + h, 0, y)
-            : dir === "right" ? cx.createLinearGradient(x, 0, x + w, 0)
-            :                   cx.createLinearGradient(x + w, 0, x, 0);
-    G.addColorStop(0, rgba(colour, s));
-    G.addColorStop(1, rgba(colour, 0));
-    cx.fillStyle = G; cx.fillRect(x, y, w, h);
+    const key = dir + w + "x" + h + colour + s;
+    let G = beams.get(key);
+    if (!G) {
+      G = dir === "down"  ? cx.createLinearGradient(0, 0, 0, h)
+        : dir === "up"    ? cx.createLinearGradient(0, h, 0, 0)
+        : dir === "right" ? cx.createLinearGradient(0, 0, w, 0)
+        :                   cx.createLinearGradient(w, 0, 0, 0);
+      G.addColorStop(0, rgba(colour, s));
+      G.addColorStop(1, rgba(colour, 0));
+      beams.set(key, G);
+    }
+    cx.save();
+    cx.translate(x, y);
+    cx.fillStyle = G; cx.fillRect(0, 0, w, h);
+    cx.restore();
   }
 
   // The two directions were the same routine with the axes swapped. One
@@ -1796,7 +1829,7 @@
     zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint);
   }
 
-  function draw(par, boxes) {
+  function draw(par, boxes, g) {
     const S = SCENE[sceneKind], W = innerWidth, H = sceneH;
 
     if (sceneMode === "clouds") {
@@ -1804,8 +1837,6 @@
       drawMapGlow(S);
       return;
     }
-
-    const g = geom();
 
     // 1 — surfaces
     cx.fillStyle = S.blank; cx.fillRect(0, 0, W, H);      // nothing past the kerb
@@ -1848,7 +1879,7 @@
       }
       for (const b of boxes) {
         const st = b.st;
-        const laneY = Q(b.roadTop) + PARK_W;
+        const laneY = Q(b.roadTop) + LANE_OFF;
         for (const c of st.cars) {
           beam(c.x + c.spec.len - 2, laneY, 46, CAR_W, S.head, "right", .5);
           beam(c.x - 24, laneY, 26, CAR_W, S.tail, "left", .32);
@@ -1887,7 +1918,7 @@
     for (const c of avCars) veh(R(g.lane), c.y + c.spec.len, c.spec, c.color, S.glass, true);
     for (const b of boxes) {
       const st = b.st;
-      const laneY = Q(b.roadTop) + PARK_W;
+      const laneY = Q(b.roadTop) + LANE_OFF;
       for (const c of st.cars) veh(laneY, c.x + c.spec.len, c.spec, c.color, S.glass, false);
     }
 
@@ -1933,15 +1964,15 @@
     const par = scrollY * PARALLAX;
     const dt = Math.min(.05, (t - lastT) / 1000) || .016;
     lastT = t; clock += dt;
-    const boxes = sceneMode === "street" ? intersections() : [];
+    const g = geom();
+    const boxes = sceneMode === "street" ? intersections(g) : [];
     carry(par);
     if (!reduceMotion && sceneMode === "street") {
-      const g = geom();
       stepWalkers(dt, g, sceneH, boxes);
       stepAvenue(dt, g, sceneH, boxes);
       stepCross(dt, g, boxes);
     }
-    draw(par, boxes);
+    draw(par, boxes, g);
   }
 
   // Reallocating a full-screen bitmap is megabytes of work, and the address
@@ -1958,6 +1989,7 @@
     grid = dpr;
     cv.width = w; cv.height = h;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    beams = new Map();               // they belong to the bitmap that just went
   }
 
   function sceneSetKind(kind, mode) {
@@ -1993,7 +2025,7 @@
   function sceneStart() {
     cv = document.getElementById("scene");
     cx = cv.getContext("2d");
-    sizeCanvas(); populate();
+    fitStreet(); sizeCanvas(); populate();
     // A phone changes the viewport height whenever the address bar hides or
     // shows, which is on every change of scroll direction. Rebuilding the
     // street there restarted every car and every walker, so only a genuine
@@ -2001,18 +2033,23 @@
     let lastW = innerWidth;
     addEventListener("resize", () => {
       const rotated = Math.abs(innerWidth - lastW) > 2;
-      if (rotated) { lastW = innerWidth; sceneH = innerHeight; }   // a new scene
+      if (rotated) { lastW = innerWidth; sceneH = innerHeight; fitStreet(); }   // a new scene
       sizeCanvas();
       if (rotated) populate();
     }, { passive: true });
     lastPar = scrollY * PARALLAX;
     addEventListener("scroll", () => {
-      if (performance.now() - lastT > 120) {
-        // this path runs precisely when frames are not
-        const par = scrollY * PARALLAX;
-        const boxes = sceneMode === "street" ? intersections() : [];
+      // Fill in whenever frames are not keeping up, and half rate is the
+      // line. The gate used to be 120ms, which is the wrong way round: a
+      // phone running frames at ten a second kept the fallback switched off
+      // and moved the ground ten times a second while the compositor glided
+      // the roofs past at sixty. Drawing twice in a frame costs a millisecond
+      // and looks like nothing; not drawing is the thing you can see.
+      if (performance.now() - lastT > 32) {
+        const par = scrollY * PARALLAX, g = geom();
+        const boxes = sceneMode === "street" ? intersections(g) : [];
         carry(par);
-        draw(par, boxes);
+        draw(par, boxes, g);
       }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
@@ -2103,6 +2140,7 @@
 
     // the nav is the bottom edge of the header box unless subtabs follow it
     document.documentElement.toggleAttribute("data-subtabs", !!content.querySelector(".tabs"));
+    headEls = content.querySelectorAll(".date-head");
     applyBookmarkStyles();
     saveView();
   }
