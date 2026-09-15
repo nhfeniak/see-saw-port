@@ -1342,11 +1342,13 @@
   // scrolling. The scene keeps the tallest height it has been and hangs the
   // spare below the fold; only a change of width — a rotation — resets it.
   let sceneH = innerHeight;
-  // Whole CSS pixels are up to three device pixels on a phone, so a ground
-  // that steps by one of them stutters against roofs the compositor is moving
-  // smoothly. Drawing lands on the device grid instead.
-  let grid = 1;
-  const Q = (v) => Math.round(v * grid) / grid;
+  // Nothing that moves with the scroll is rounded. A grid — any grid, whole
+  // pixels or device pixels — makes the ground advance in steps while the
+  // compositor glides the roofs above it smoothly, and the two only agree
+  // when the step rate divides the frame rate. Everywhere else they beat
+  // against each other, which is a judder that appears at particular scroll
+  // speeds and nowhere else. Sub-pixel edges are soft; a beat is visible.
+  // Sideways is still rounded: it does not move, and a crisp kerb is free.
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -1795,17 +1797,21 @@
   // horizontal street burying the traffic passing under it.
   function drawCrossSurface(g, b, S) {
     const bl = R(g.walkX), thru = R(g.edge);
-    const top = Q(b.top), roadTop = Q(b.roadTop), roadBot = Q(b.roadBot);
-    cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
+    const top = b.top, roadTop = b.roadTop, roadBot = b.roadBot;
+    // Pavement first and a pixel into the road, then the road over it. Two
+    // rectangles that merely meet at a fractional edge each paint that row of
+    // pixels at partial strength, and what shows between them is whatever was
+    // underneath — a hairline of ground along every kerb.
     cx.save();
     cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
     for (const s of slabs) {
       cx.fillStyle = s.c;
       const sx = R(s.y - M(6.5)), sw = R(s.h) + 1;
-      cx.fillRect(sx, top, sw, WALK_W);
-      cx.fillRect(sx, roadBot, sw, WALK_W);
+      cx.fillRect(sx, top, sw, WALK_W + 1);
+      cx.fillRect(sx, roadBot - 1, sw, WALK_W + 1);
     }
     cx.restore();
+    cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
   }
 
   // Bar and gap the same width with a gap at each end, so the pattern never
@@ -1817,8 +1823,8 @@
     cx.fillStyle = colour;
     for (let i = 0; i < n; i++) {
       const o = unit * (1 + 2 * i);
-      if (barsRunDown) cx.fillRect(R(x + o), Q(y), R(unit), R(along));
-      else cx.fillRect(R(x), Q(y + o), R(along), Q(unit));
+      if (barsRunDown) cx.fillRect(R(x + o), y, R(unit), along);
+      else cx.fillRect(R(x), y + o, along, unit);
     }
   }
 
@@ -1849,12 +1855,12 @@
     const off = ((par % TILE) + TILE) % TILE;
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
-      for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), Q(base + s.y), WALK_W, R(s.h) + 1); }
+      for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), base + s.y, WALK_W, s.h + 1); }
     }
     for (const b of boxes) drawCrossSurface(g, b, S);
     for (const b of boxes) {                       // pavement stops at a junction
       cx.fillStyle = S.avenue;
-      cx.fillRect(R(g.walkX), Q(b.roadTop), WALK_W, ROAD_W);
+      cx.fillRect(R(g.walkX), b.roadTop, WALK_W, ROAD_W);
     }
 
     // 2 — paint, before anything drives over it
@@ -1865,7 +1871,7 @@
       for (let t = -TILE; t < H + TILE; t += TILE) {      // frontage on the avenue
         const base = t - off;
         for (const L of avLights) {
-          const y = Q(base + L.a), len = R(L.len);
+          const y = base + L.a, len = L.len;
           if (y > H || y + len < 0) continue;
           if (boxes.some(b => y + len > b.top - CORNER && y < b.bot + CORNER)) continue;
           beam(R(g.walkX), y, WALK_W, len, S.gallery, "right", .5);
@@ -1874,8 +1880,8 @@
       for (const b of boxes) for (const L of b.st.lights) {  // and on the block
         const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
         if (len <= 0) continue;
-        if (L.side) beam(x, Q(b.roadBot), len, WALK_W, S.gallery, "up", .5);
-        else        beam(x, Q(b.top), len, WALK_W, S.gallery, "down", .5);
+        if (L.side) beam(x, b.roadBot, len, WALK_W, S.gallery, "up", .5);
+        else        beam(x, b.top, len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
         beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), S.head, "down", .5);
@@ -1883,7 +1889,7 @@
       }
       for (const b of boxes) {
         const st = b.st;
-        const laneY = Q(b.roadTop) + LANE_OFF;
+        const laneY = b.roadTop + LANE_OFF;
         for (const c of st.cars) {
           beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, S.head, "right", .5);
           beam(c.x - MR(3.1), laneY, MR(3.4), CAR_W, S.tail, "left", .32);
@@ -1900,7 +1906,7 @@
       const wall = Math.min(Math.abs(b.shift), M(1.45));
       if (wall < 1) continue;
       const above = b.shift > 0;                  // which building is showing
-      const y = above ? Q(b.top) - wall : Q(b.bot);
+      const y = above ? b.top - wall : b.bot;
       for (const L of b.st.lights) {
         if (L.side !== (above ? 0 : 1)) continue;
         const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
@@ -1914,15 +1920,15 @@
     for (const b of boxes) {
       const st = b.st;
       const stop = g.walkX - 6;
-      for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(Q(b.roadTop), p.x + p.spec.len, p.spec, p.color, S.glass, false);
-      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(Q(b.roadBot) - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(b.roadTop, p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(b.roadBot - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
     }
 
     // 5 — everything moving, both directions on the same layer
     for (const c of avCars) veh(R(g.lane), c.y + c.spec.len, c.spec, c.color, S.glass, true);
     for (const b of boxes) {
       const st = b.st;
-      const laneY = Q(b.roadTop) + LANE_OFF;
+      const laneY = b.roadTop + LANE_OFF;
       for (const c of st.cars) veh(laneY, c.x + c.spec.len, c.spec, c.color, S.glass, false);
     }
 
@@ -1990,7 +1996,6 @@
     cv.style.width = innerWidth + "px";
     cv.style.height = sceneH + "px";
     if (cv.width === w && cv.height === h) return;   // assigning either clears it
-    grid = dpr;
     cv.width = w; cv.height = h;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
     beams = new Map();               // they belong to the bitmap that just went
@@ -2145,6 +2150,14 @@
     // the nav is the bottom edge of the header box unless subtabs follow it
     document.documentElement.toggleAttribute("data-subtabs", !!content.querySelector(".tabs"));
     headEls = content.querySelectorAll(".date-head");
+    // Every block's traffic, parking, frontage and crowd is built now rather
+    // than the first time that heading scrolls into view. There are never more
+    // than a dozen and it is a millisecond here; done during a flick it is a
+    // dropped frame, at whatever speed happens to reach the next heading.
+    if (sceneMode === "street") {
+      const S = SCENE[sceneKind], W = geom().fieldW;
+      for (const el of headEls) crossFor(el.dataset.key, S, W);
+    }
     applyBookmarkStyles();
     saveView();
   }
