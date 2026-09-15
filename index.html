@@ -1245,15 +1245,16 @@
   const WALK_W = Math.round(M(3.8));     // 12 ft
   const PARK_W = Math.round(MR(2.6));    // 8 ft
   const LANE_W = Math.round(MR(3.3));    // 11 ft
-  // The avenue is drawn as far as the middle of its travel lane and no
-  // further: the street runs off the side of the page rather than stopping at
-  // a kerb that is not there.
-  const AV_ROAD = PARK_W + Math.round(LANE_W / 2);
+  // The avenue is drawn to the far side of its travel lane: the near parking
+  // and the lane itself, whole. The parking on the far side is the part that
+  // is not there — the street runs off the page rather than stopping at a
+  // kerb that would have to be invented.
+  const AV_ROAD = PARK_W + LANE_W;
   // The pavement column beside the roofs. On a wide screen there is space to
   // the right of the listings and the street simply overhangs the column, so
   // the roofs keep their width; on a phone there is none, and the column
-  // widens until the crop lands exactly on the edge of the screen.
-  const GUTTER_MIN = WALK_W + 12;
+  // widens until the whole lane and a metre of air land on the screen.
+  const GUTTER_MIN = WALK_W + 12, STREET_AIR = 1;   // metres
   let GUTTER = GUTTER_MIN;
   const R = Math.round;              // everything lands on whole pixels
   const PED_R = Math.round(M(0.62));  // every person the same size
@@ -1271,7 +1272,7 @@
   function fitStreet() {
     const el = document.getElementById("content");
     const right = el ? el.getBoundingClientRect().right : Math.min(innerWidth, 640) - 12;
-    GUTTER = Math.max(GUTTER_MIN, Math.round(WALK_W + AV_ROAD - (innerWidth - right)));
+    GUTTER = Math.max(GUTTER_MIN, Math.round(WALK_W + AV_ROAD + M(STREET_AIR) - (innerWidth - right)));
     rootStyle.setProperty("--gutter", GUTTER + "px");
   }
   fitStreet();
