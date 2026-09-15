@@ -1361,31 +1361,48 @@
 
   const SCENE = {
     night: {
-      // the map, from the same four roofs and the same street
-      // Sodium. Every warm tone in this scene is one light — a low-pressure
-      // lamp is nearly a single wavelength — so they all carry the same
-      // chroma. Deep and orange rather than yellow: the bookmark is the
-      // yellow, at a lightness nothing here comes near, and it stays the
-      // brightest mark on the page.
+      // Measured off a drone shot looking straight down a Manhattan street
+      // after dark, binned by lightness. Two things came out of it that no
+      // amount of choosing colours by eye had found:
+      //
+      //   L0-9    40% of the frame   S16-24   H252-264   violet, not grey
+      //   L10-14  14%                S19      H26
+      //   L15-24  24%                S23-30   H32-35
+      //   L25-39  11%                S23-28   H37
+      //   L40-54   5%                S11-20   H33-35
+      //
+      // The blacks are violet. That is skyglow — the only light reaching
+      // anything the lamps miss — and it is what keeps the darks from
+      // reading as flat grey. And saturation peaks in the mid-darks and
+      // falls away at both ends: the deep shadows are nearly neutral and the
+      // lit surfaces wash toward white, so the most coloured thing in the
+      // frame is the pavement at L25-31, not the brightest thing in it. Hue
+      // climbs 26 -> 37 as it brightens, which is the lamp's own spectrum
+      // arriving as a surface stops being lit by sky and starts being lit by
+      // sodium.
+      //
+      // The order the photograph puts things in is roof, then road, then
+      // pavement: the pavement under the lamps is the brightest large
+      // surface there is, and the road between two of them is nearly black.
+      // Every one of those was the wrong way round here before.
       map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
-             line: "#634321", water: "#000000" },
+             line: "#634821", water: "#000000" },
       // Two warms, not one. The lamp the map is lit by is the deeper of them
       // and every step of street brightness is carried toward it; the halo
       // thrown out of the opening is the older, paler one, because that is
       // light travelling through air rather than falling on a surface.
-      glow: [255, 186, 112], halo: [255, 214, 150],
-      blank: "#000000", asphalt: "#191A20", avenue: "#131419",
-      walks: ["#513924", "#46382B", "#5D4328"],
-      // The two faces the gap opens on, and the darkest thing in the scene.
-      // A wall at night is lit by whatever spills sideways out of the street,
-      // which is almost nothing: it has to sit under the pavement, or the gap
-      // reads as a lit surface rather than as the side of a building. One
-      // stock, the lower one a shade down.
-      wallLit: "#3A2B19", wallShade: "#2F2314",
-      glass: "#0A0908", paint: "#5C5955",
-      cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#3F1913", "#5C5955"],
-      coats: ["#141210", "#241C16"],
-      head: [255, 233, 194], tail: [223, 22, 12], gallery: [214, 234, 255],
+      glow: [255, 202, 122], halo: [255, 214, 150],
+      blank: "#000000", asphalt: "#0E0D12", avenue: "#292119",
+      walks: ["#594731", "#4D3C2D", "#655339"],
+      // The two faces the gap opens on, and the darkest thing in the scene —
+      // in the photograph the side of a building is not lit at all. The upper
+      // one keeps a little of the street's warmth; the lower one is skyglow
+      // and nothing else, which is the same violet black the roofs sit on.
+      wallLit: "#1C1612", wallShade: "#0F0D12",
+      glass: "#0C0A08", paint: "#72634F",
+      cars: ["#1F1914", "#1F1914", "#3E3428", "#4E4436", "#3B1F16", "#867156"],
+      coats: ["#181410", "#28201A"],
+      head: [250, 223, 177], tail: [223, 22, 12], gallery: [216, 235, 255],
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
       // Half of what a block holds, so the gaps are the street's own and not
