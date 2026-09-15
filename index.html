@@ -1367,10 +1367,10 @@
       glow: [255, 214, 150],
       blank: "#000000", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
-      // The two faces the gap opens on: the one above catches the light and
-      // goes warm, the one below is the same wall in shadow — a cool grey,
-      // and about as light as the pavement rather than the dark of the ground.
-      wallLit: "#6A5F4A", wallShade: "#45484F",
+      // The two faces the gap opens on. The same wall, in and out of what
+      // light there is: one stock, the lower one a shade down. A different
+      // colour for the shaded one read as a different building.
+      wallLit: "#6A5F4A", wallShade: "#5A513F",
       glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
@@ -1387,10 +1387,11 @@
     day: {
       // ground, then the blocks on it, then the street network over both —
       // three tones, because a street the colour of the ground is no street.
-      // The blocks are the warm grey and the ground they stand on the pale
-      // one; the page around the map is paler still and is not part of it.
-      map: { back: "#E8E7E7", block: "#B0A49D", grid: "#DDDCDC",
-             line: "#6E6E74", water: "#55646B" },   // the Hudson, overcast
+      // All of it pale, and the blocks the one colour in the scheme that is
+      // not a grey: the page around the map is paler still and is not part
+      // of it. The dots keep their black; they are not part of the map.
+      map: { back: "#F0EFED", block: "#C3D3BE", grid: "#E9E8E6",
+             line: "#A0A4A8", water: "#93A8AE" },   // the Hudson, overcast
       glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
@@ -1399,7 +1400,7 @@
       // scene that throws shadows. The sun is off the bottom right, so
       // everything throws up and to the left — which is also why the wall you
       // see above a street is the lit one and the wall below it is not.
-      shade: "rgba(20, 28, 52, .34)",
+      shade: "rgba(10, 22, 72, .46)",
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
