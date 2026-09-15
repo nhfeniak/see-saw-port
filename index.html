@@ -1448,9 +1448,7 @@
   // that spill reaches — half the beam over the pavement. A flat white was
   // brighter than anything else in the scene by a wide margin.
   function winColour(S) {
-    // By day a gallery window is the darkest thing on the wall rather than
-    // the brightest: the same opening, with the light on the other side of it.
-    if (!S.gallery) return S.glass;
+    if (!S.gallery) return null;                // daylight: there is no spill
     const w = S.walks.map(toRGB);
     return toHex(S.gallery.map((c, i) => {
       const peak = (c + w.reduce((t, q) => t + q[i], 0) / w.length) / 2;
@@ -1878,41 +1876,66 @@
   // at a third opacity laid twice comes out at more than half, and the places
   // where a person crossed a car were darker than either.
   //
-  // A vehicle is its own box with the corners cut at forty-five degrees. A
-  // person is a bar along the line the sun throws, with their head a circle on
-  // the end of it — overlapping the bar, which costs nothing inside one fill.
-  function cutTo(p, x, y, w, h, c) {
-    p.moveTo(x + c, y); p.lineTo(x + w - c, y);
-    p.lineTo(x + w, y + c); p.lineTo(x + w, y + h - c);
-    p.lineTo(x + w - c, y + h); p.lineTo(x + c, y + h);
-    p.lineTo(x, y + h - c); p.lineTo(x, y + c);
+  // A vehicle's shadow is the car's own rectangle moved up and to the left by
+  // a third of its width, and everything the car swept on the way: the two
+  // shapes and the forty-five degree lines joining them at the bottom left and
+  // the top right. Six sides, one subpath.
+  function hullTo(p, x, y, w, h, o) {
+    p.moveTo(x - o, y - o);
+    p.lineTo(x - o + w, y - o);
+    p.lineTo(x + w, y);
+    p.lineTo(x + w, y + h);
+    p.lineTo(x, y + h);
+    p.lineTo(x - o, y - o + h);
     p.closePath();
   }
 
+  // A person's is a bar along the line the sun throws with the round of their
+  // head on the end. One subpath, the arc inline: a circle added beside the
+  // bar is a second subpath wound the other way, and a fill cancels where two
+  // such cross — which left a clean hole through the middle of every one.
   function barTo(p, x, y, dx, dy, r) {
-    const L = Math.hypot(dx, dy) || 1, nx = -dy / L * r, ny = dx / L * r;
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const nx = -uy * r, ny = ux * r, a = Math.atan2(ny, nx);
     p.moveTo(x + nx, y + ny);
     p.lineTo(x + dx + nx, y + dy + ny);
-    p.lineTo(x + dx - nx, y + dy - ny);
+    p.arc(x + dx, y + dy, r, a, a - Math.PI, true);
     p.lineTo(x - nx, y - ny);
     p.closePath();
-    p.moveTo(x + dx + r, y + dy);
-    p.arc(x + dx, y + dy, r, 0, 6.2832);
   }
 
-  // The shadow a block throws up across its lower kerb and the cars standing
-  // at it. The corner where it meets the avenue is cut back at forty-five
-  // degrees over the whole depth of the band, because that corner is the
-  // corner of the building throwing it. Pass `whole` for everywhere it is not,
-  // which is what the rest of the shadows are clipped to.
-  function blockShade(g, boxes, whole) {
+  // The shadow a block throws up over its lower kerb and the cars standing at
+  // it, as deep as the parking. The forty-five degree edge runs to the inside
+  // corner of the pavement, which is the corner of the building throwing it —
+  // not to the corner of the roof, which is a storey higher and further on.
+  // Past that corner it runs straight down the side of the avenue.
+  function bandTo(p, b, bl) {
+    const top = b.roadBot - PARK_W;
+    p.moveTo(0, top);
+    p.lineTo(bl - PARK_W, top);
+    p.lineTo(bl, b.roadBot);
+    p.lineTo(bl, b.gapBot);
+    p.lineTo(0, b.gapBot);
+    p.closePath();
+  }
+
+  function blockShade(g, boxes) {
     const p = new Path2D(), bl = R(g.walkX);
-    if (whole) p.rect(-1e4, -1e4, 2e4, 2e4);
+    for (const b of boxes) bandTo(p, b, bl);
+    return p;
+  }
+
+  // Everywhere a shadow is allowed to land: not the wall a gap opens above a
+  // street, which is a face of a building and not the ground, and not where
+  // the block's own shadow is going, which is laid over the traffic later.
+  // Everything is drawn its full length and this is what hides it, so a person
+  // walking under a wall keeps the same shadow as everyone else.
+  function shadowMask(g, boxes) {
+    const p = new Path2D(), bl = R(g.walkX);
+    p.rect(-1e4, -1e4, 2e4, 2e4);
     for (const b of boxes) {
-      const top = b.roadBot - PARK_W, dep = b.gapBot - top;
-      p.moveTo(0, top); p.lineTo(bl - dep, top);
-      p.lineTo(bl, top + dep); p.lineTo(0, top + dep);
-      p.closePath();
+      p.rect(0, b.gapTop, bl, Math.max(0, b.top - b.gapTop));
+      bandTo(p, b, bl);
     }
     return p;
   }
@@ -2105,26 +2128,18 @@
     // left: a person as a long bar with the round of their head at the top of
     // it, a vehicle as its own box with the corners cut.
     if (S.shade) {
-      const d = M(1.4), pl = M(2.0), diag = .7071, P = new Path2D();
-      for (const p of avParkA) cutTo(P, R(g.parkA) - d, p.y - d, CAR_W, p.spec.len, 3);
-      for (const c of avCars) cutTo(P, R(g.lane) - d, c.y - d, CAR_W, c.spec.len, 3);
+      const o = CAR_W / 3, pl = M(2.0) * .7071, P = new Path2D();
+      for (const p of avParkA) hullTo(P, R(g.parkA), p.y, CAR_W, p.spec.len, o);
+      for (const c of avCars) hullTo(P, R(g.lane), c.y, CAR_W, c.spec.len, o);
       for (const b of boxes) {
         const st = b.st, laneY = b.roadTop + LANE_OFF, stop = g.walkX - 6;
-        for (const p of st.parkT) if (p.x + p.spec.len < stop) cutTo(P, p.x - d, b.roadTop - d, p.spec.len, CAR_W, 3);
-        for (const p of st.parkB) if (p.x + p.spec.len < stop) cutTo(P, p.x - d, b.roadBot - PARK_W - d, p.spec.len, CAR_W, 3);
-        for (const c of st.cars) cutTo(P, c.x - d, laneY - d, c.spec.len, CAR_W, 3);
+        for (const p of st.parkT) if (p.x + p.spec.len < stop) hullTo(P, p.x, b.roadTop, p.spec.len, CAR_W, o);
+        for (const p of st.parkB) if (p.x + p.spec.len < stop) hullTo(P, p.x, b.roadBot - PARK_W, p.spec.len, CAR_W, o);
+        for (const c of st.cars) hullTo(P, c.x, laneY, c.spec.len, CAR_W, o);
       }
-      // A shadow thrown up off the top pavement would climb the lit wall above
-      // it, and a wall in full sun does not take one. It stops at the kerb.
-      for (const p of peds) {
-        if (p.y < -20) continue;
-        let reach = pl;
-        for (const b of boxes) if (p.y >= b.top && p.y <= b.bot)
-          reach = Math.min(reach, (p.y - b.top) / diag);
-        if (reach > PED_R) barTo(P, p.x, p.y, -reach * diag, -reach * diag, PED_R);
-      }
+      for (const p of peds) if (p.y > -20) barTo(P, p.x, p.y, -pl, -pl, PED_R);
       cx.save();
-      cx.clip(blockShade(g, boxes, true), "evenodd");   // not where the block's own falls
+      cx.clip(shadowMask(g, boxes), "evenodd");
       cx.fillStyle = S.shade; cx.fill(P);
       cx.restore();
     }
