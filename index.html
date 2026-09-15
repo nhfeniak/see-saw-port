@@ -1359,6 +1359,11 @@
   ];
   const MIX = [0, 0, 0, 1, 1, 2, 2, 3, 4];
 
+  // The one cool light in the scene. A gallery lamp and a discharge headlamp
+  // are the same daylight white against the sodium everything else is lit by,
+  // so they are the same colour here rather than two that nearly match.
+  const COOL_WHITE = [216, 235, 255];
+
   const SCENE = {
     night: {
       // Measured off a drone shot looking straight down a Manhattan street
@@ -1402,12 +1407,12 @@
       glass: "#0C0A08", paint: "#72634F",
       cars: ["#1F1914", "#1F1914", "#3E3428", "#4E4436", "#3B1F16", "#867156"],
       coats: ["#181410", "#28201A"],
-      // Halogen, and the quarter of the fleet that is not. In the photograph
-      // 18% of everything bright enough to be a light source rather than a lit
-      // surface reads cool rather than warm; among cars alone it is higher,
-      // because the ones with discharge lamps in them are the newer ones.
-      head: [250, 223, 177], headCool: [205, 221, 240],
-      tail: [223, 22, 12], gallery: [216, 235, 255],
+      // In the photograph 18% of everything bright enough to be a light source
+      // rather than a lit surface reads cool rather than warm; among cars
+      // alone it is higher, because the ones with discharge lamps in them are
+      // the newer ones.
+      head: [250, 223, 177], headCool: COOL_WHITE,
+      tail: [223, 22, 12], gallery: COOL_WHITE,
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
       // Half of what a block holds, so the gaps are the street's own and not
@@ -1507,12 +1512,16 @@
   // Everyone carries how far across the pavement they are and drifts slowly
   // toward a new spot. Two fixed files read as a queue; a wandering offset
   // reads as a crowd, which is what the cross streets already looked like.
+  // Halogen, and the quarter of the fleet that is not. A car keeps whichever
+  // it was given for as long as it exists, so one does not change temperature
+  // as it comes back round the street — and the cross streets draw from the
+  // same tin as the avenue, which they did not when they were built inline.
+  const lamps = (S) => S.headCool && Math.random() < .25 ? S.headCool : S.head;
+
   function makeCar(S, y) {
     const v = spec();
-    // A car keeps its own headlamps for as long as it exists, so one does not
-    // change temperature as it comes back round the street.
     return { y, spec: v, speed: MR(rnd(6.7, 9.4)), color: pick(S.cars), stopped: false,
-             head: S.headCool && Math.random() < .25 ? S.headCool : S.head };
+             head: lamps(S) };
   }
 
   // Pavement drifts between its three tones in long even runs broken by short
@@ -1622,7 +1631,8 @@
       const lead = MR(8), n = R(W / 100 * d.crossCars), slot = (W + lead) / n;
       for (let i = 0; i < n; i++)
         c.cars.push({ x: -lead + (i + rnd(.04, .96)) * slot,
-                      spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
+                      spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars),
+                      head: lamps(S) });
       for (const row of ["parkT", "parkB"]) {
         let x = MR(rnd(-10.3, 2.6));
         while (x < W) {
