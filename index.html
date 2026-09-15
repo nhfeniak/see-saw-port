@@ -1308,6 +1308,7 @@
   // than only when the parallax has pulled the two planes apart. It is what
   // tells you the roofs have a thickness.
   const GAP_EXTRA = Math.round(M(1.2));
+  const WIN_D = M(1.45);             // how far a shopfront runs up its wall
   const TILE = Math.round(M(145));   // the pavement pattern repeats
 
   // The listings are built to the same street: the pavement column beside a
@@ -1995,21 +1996,19 @@
       }
     }
 
-    // 3b — the shopfront. Off the centre of the screen the roofs and the
-    // ground have pulled apart, and a strip of the building's own wall shows in
-    // the gap. The lit window sits on it, hard against the pavement and on top
-    // of whatever light it is throwing, and grows as the perspective opens.
+    // 3b — the shopfront, on the wall of the building either side of the gap,
+    // hard against its own pavement and on top of whatever light it throws.
+    //
+    // Both walls, always, at a fixed depth that runs up behind the roof above
+    // and down behind the roof below. Drawing only the wall the parallax had
+    // opened meant the windows changed sides the instant the gap passed the
+    // middle of the screen, which is a snap; running them under the roofs lets
+    // the roofs do the hiding, and what you see grows and shrinks with the gap
+    // instead of appearing.
     cx.fillStyle = winCol;
     for (const b of winCol ? boxes : []) {
-      // there is half the extra gap even with the planes lined up
-      const wall = Math.min(Math.abs(b.shift) + GAP_EXTRA / 2, M(1.45));
-      if (wall < 1) continue;
-      const above = b.shift > 0;                  // which building is showing
-      const y = above ? b.top - wall : b.bot;
-      for (const L of b.st.lights) {
-        if (L.side !== (above ? 0 : 1)) continue;
-        cx.fillRect(L.x, y, L.len, wall);
-      }
+      for (const L of b.st.lights)
+        cx.fillRect(L.x, L.side ? b.bot : b.top - WIN_D, L.len, WIN_D);
     }
 
     // 4 — parked. Nobody parks in a junction or on a crossing.
