@@ -1234,7 +1234,17 @@
   const PX_PER_M = 4.65;
   const M = (m) => m * PX_PER_M;
   const ROOF_H_M = 20, CAM_H_M = 220;
-  const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
+
+  // Two switches for pinning down the judder on a phone, which I cannot
+  // reproduce here. ?flat runs the ground at the roofs' own rate, so anything
+  // that still slips between them is the main thread's idea of the scroll
+  // position trailing the compositor's and nothing else. ?still stops the
+  // ground responding to the scroll at all and drops the cross streets, which
+  // are placed off element rectangles — a second reading of the same thing —
+  // leaving nothing in the canvas that a scroll position could get wrong.
+  const PROBE = new URLSearchParams(location.search);
+  const FLAT = PROBE.has("flat"), STILL = PROBE.has("still");
+  const PARALLAX = STILL ? 0 : FLAT ? 1 : (CAM_H_M - ROOF_H_M) / CAM_H_M;
 
   // A Tribeca side street, measured: 12 ft pavements, 8 ft parking either side
   // of an 11 ft lane. Taken from metres so the whole street scales off PX_PER_M.
@@ -1397,19 +1407,22 @@
 
   // Pavement drifts between its three tones in long even runs broken by short
   // patched stretches — poured slabs, then a piece of pavement someone cut up.
-  function buildSlabs(S) {
-    slabs = [];
+  // A run belongs to one length of pavement: the avenue has one, and every
+  // block has one for each of its two sides, so no two are laid the same.
+  function slabRun(S, span) {
+    const out = [];
     let y = 0;
-    while (y < TILE) {
+    while (y < span) {
       const calm = Math.random() < 0.62;
       const end = y + (calm ? M(rnd(22.6, 53.2)) : M(rnd(8.1, 17.7)));
       const steady = calm ? pick(S.walks) : null;
-      while (y < end && y < TILE) {
+      while (y < end && y < span) {
         const h = calm ? M(rnd(5.5, 14.5)) : M(rnd(1.9, 4.5));
-        slabs.push({ y, h, c: steady || pick(S.walks) });
+        out.push({ y, h, c: steady || pick(S.walks) });
         y += h;
       }
     }
+    return out;
   }
 
   // Lit shopfronts along a building: irregular gaps, and each one as long as
@@ -1467,7 +1480,7 @@
     avParkA = parkRow(S, H);
 
     crossStreets.clear();
-    buildSlabs(S);
+    slabs = slabRun(S, TILE);
     avLights = lightRun(TILE);
     winCol = winColour(S);
   }
@@ -1478,7 +1491,8 @@
     let c = crossStreets.get(key);
     if (!c) {
       const d = S.density;
-      c = { cars: [], parkT: [], parkB: [], occ: null, lights: [] };
+      c = { cars: [], parkT: [], parkB: [], occ: null, lights: [],
+            walks: [slabRun(S, W), slabRun(S, W)] };
       // Traffic by the length of the block, like its parking and its crowd.
       // A flat three put two cars on a street however long it was, which on a
       // wide one is an empty road.
@@ -1831,12 +1845,11 @@
     // underneath — a hairline of ground along every kerb.
     cx.save();
     cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
-    for (const s of slabs) {
-      cx.fillStyle = s.c;
-      const sx = R(s.y - M(6.5)), sw = R(s.h) + 1;
-      cx.fillRect(sx, top, sw, WALK_W + 1);
-      cx.fillRect(sx, roadBot - 1, sw, WALK_W + 1);
-    }
+    const lay = (run, y) => {
+      for (const s of run) { cx.fillStyle = s.c; cx.fillRect(R(s.y), y, R(s.h) + 1, WALK_W + 1); }
+    };
+    lay(b.st.walks[0], top);
+    lay(b.st.walks[1], roadBot - 1);
     cx.restore();
     cx.fillStyle = S.avenue; cx.fillRect(0, roadTop, thru, ROAD_W);
   }
@@ -1999,7 +2012,7 @@
     const dt = Math.min(.05, (t - lastT) / 1000) || .016;
     lastT = t; clock += dt;
     const g = geom();
-    const boxes = sceneMode === "street" ? intersections(g) : [];
+    const boxes = sceneMode === "street" && !STILL ? intersections(g) : [];
     carry(par);
     if (!reduceMotion && sceneMode === "street") {
       stepWalkers(dt, g, sceneH, boxes);
@@ -2086,7 +2099,7 @@
       // and looks like nothing; not drawing is the thing you can see.
       if (performance.now() - lastT > 32) {
         const par = scrollY * PARALLAX, g = geom();
-        const boxes = sceneMode === "street" ? intersections(g) : [];
+        const boxes = sceneMode === "street" && !STILL ? intersections(g) : [];
         carry(par);
         draw(par, boxes, g);
       }
