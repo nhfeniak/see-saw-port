@@ -308,8 +308,15 @@
   }
 
   /* the opening in the cloud is inset, so the glow has somewhere to fall */
-  :root { --map-pad-x: 22px; --map-pad-y: 20px; --map-gap: 8px; }
-  .mapframe { position: relative; padding: var(--map-pad-y) var(--map-pad-x); }
+  /* The map runs the width of the screen less the margin the listings keep
+     from the left of it. The negative margin takes back the page's own right
+     padding, so what is left is the same on both sides. */
+  :root { --map-pad-x: 11px; --map-pad-y: 20px; --map-gap: 8px; }
+  .mapframe {
+    position: relative;
+    margin-right: -12px;
+    padding: var(--map-pad-y) var(--map-pad-x);
+  }
 
   .mapwrap {
     max-height: 70vh;
@@ -1296,6 +1303,11 @@
   const DOT_D = 11;                  // a gallery on the map: a shade over a person
   const ROAD_W = PARK_W * 2 + LANE_W;    // the cross street shows its full section
   const CROSS_H = WALK_W * 2 + ROAD_W;
+  // The hole in the roofs is a little deeper than the street laid in it, so
+  // there is always a strip of building wall showing at both ends of it rather
+  // than only when the parallax has pulled the two planes apart. It is what
+  // tells you the roofs have a thickness.
+  const GAP_EXTRA = Math.round(M(1.2));
   const TILE = Math.round(M(145));   // the pavement pattern repeats
 
   // The listings are built to the same street: the pavement column beside a
@@ -1310,8 +1322,8 @@
     rootStyle.setProperty("--gutter", GUTTER + "px");
   }
   fitStreet();
-  rootStyle.setProperty("--cross-h", CROSS_H + "px");
-  rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
+  rootStyle.setProperty("--cross-h", CROSS_H + GAP_EXTRA + "px");
+  rootStyle.setProperty("--cross-pad", (WALK_W + GAP_EXTRA / 2 + R((ROAD_W - 26) / 2)) + "px");
   rootStyle.setProperty("--dot-d", DOT_D + "px");
 
   // One width for everything. Real vehicles vary by half a metre, but at this
@@ -1368,7 +1380,7 @@
       // daylight on a weekday afternoon, not an opening: few people about,
       // but the kerb is full — everybody who is here has parked and gone in
       density: { peds: 0.7, crossPeds: 0.7, cars: 2, park: .50,
-                 crossCars: 0.5, crossPark: .40 },
+                 crossCars: 1.0, crossPark: .40 },
       night: false,
     },
   };
@@ -1526,8 +1538,18 @@
       // Traffic by the length of the block, like its parking and its crowd.
       // A flat three put two cars on a street however long it was, which on a
       // wide one is an empty road.
-      for (let i = 0, n = R(W / 100 * d.crossCars); i < n; i++)
-        c.cars.push({ x: rnd(-MR(26), W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
+      // One car to a slot along the block, rather than each one placed at
+      // random over the whole of it. Random puts two together and leaves a
+      // third of the street empty, which on a phone is most of what you can
+      // see; a slot each covers it, and the jitter within a slot keeps it from
+      // looking counted out. Only a little of the run-up is off the end: a
+      // fifth of a short block's traffic used to start where you could not
+      // see it. More cars is not the answer — a block holds about one every
+      // eighty pixels before they are nose to tail.
+      const lead = MR(8), n = R(W / 100 * d.crossCars), slot = (W + lead) / n;
+      for (let i = 0; i < n; i++)
+        c.cars.push({ x: -lead + (i + rnd(.12, .88)) * slot,
+                      spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = MR(rnd(-10.3, 2.6));
         while (x < W) {
@@ -1698,7 +1720,7 @@
       // what being nearer the camera looks like. No clamp: the clamp is what
       // made the gap stop widening and start dragging the street with it.
       const shift = -(1 - PARALLAX) * (r.top - sceneH / 2);
-      const top = r.top + shift;
+      const top = r.top + shift + GAP_EXTRA / 2;   // centred in the deeper gap
       const key = el.dataset.key;   // its own, not its words: the gap is empty
       out.push({ el, key, shift, top, st: crossFor(key, S, W),
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
@@ -1979,7 +2001,8 @@
     // of whatever light it is throwing, and grows as the perspective opens.
     cx.fillStyle = winCol;
     for (const b of winCol ? boxes : []) {
-      const wall = Math.min(Math.abs(b.shift), M(1.45));
+      // there is half the extra gap even with the planes lined up
+      const wall = Math.min(Math.abs(b.shift) + GAP_EXTRA / 2, M(1.45));
       if (wall < 1) continue;
       const above = b.shift > 0;                  // which building is showing
       const y = above ? b.top - wall : b.bot;
