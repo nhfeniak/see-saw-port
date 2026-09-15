@@ -1347,7 +1347,15 @@
   // cars and then centred in what is left. The lane is centred in the road,
   // so this puts it in the middle of the street as well. Both axes use it, so
   // traffic running one way sits exactly as the traffic running the other does.
-  const LANE_OFF = PARK_W + Math.round((LANE_W - CAR_W) / 2);
+  // Not rounded. The lane is 19px and a car is 12, so centring it is a half
+  // pixel, and rounding that put the cross street's traffic 7px below the
+  // parked row above it and 6 above the one below — which on a street you are
+  // looking straight down at is visible. Down the page nothing is rounded
+  // anyway; across it this lands on a whole pixel when it is drawn.
+  const LANE_OFF = PARK_W + (LANE_W - CAR_W) / 2;
+  // How far a lamp sits in from the corner it is nearest, and what is left
+  // across the car for the beam to be thrown from.
+  const LAMP_IN = 1, LAMP_W = CAR_W - 2 * LAMP_IN;
   // len, then the glass as fractions of it: bonnet before the windscreen,
   // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
@@ -2167,16 +2175,22 @@
         if (L.side) beam(L.x, b.roadBot, L.len, WALK_W, S.gallery, "up", .5);
         else        beam(L.x, b.top, L.len, WALK_W, S.gallery, "down", .5);
       }
+      // Lamps are inboard of the car's corners, not flush with them, and the
+      // beam has to be too. Drawn the car's full width it sat on a fractional
+      // pixel down the page, and its own soft edge row — much brighter than
+      // the car's, because the beam is the bright thing — ran on past the nose
+      // as a hairline either side of it. A pixel in and the soft edge falls
+      // inside the silhouette, which is where a headlamp is.
       for (const c of avCars) {                     // start 2px inside the car
-        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), c.head || S.head, "down", .5);
-        beam(R(g.lane), c.y - MR(3.6), CAR_W, MR(3.9), S.tail, "up", .38);
+        beam(R(g.lane) + LAMP_IN, c.y + c.spec.len - 2, LAMP_W, MR(7), c.head || S.head, "down", .5);
+        beam(R(g.lane) + LAMP_IN, c.y - MR(3.6), LAMP_W, MR(3.9), S.tail, "up", .38);
       }
       for (const b of boxes) {
         const st = b.st;
         const laneY = b.roadTop + LANE_OFF;
         for (const c of st.cars) {
-          beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, c.head || S.head, "right", .5);
-          beam(c.x - MR(3.1), laneY, MR(3.4), CAR_W, S.tail, "left", .32);
+          beam(c.x + c.spec.len - 2, laneY + LAMP_IN, MR(5.9), LAMP_W, c.head || S.head, "right", .5);
+          beam(c.x - MR(3.1), laneY + LAMP_IN, MR(3.4), LAMP_W, S.tail, "left", .32);
         }
       }
     }
