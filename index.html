@@ -1362,19 +1362,24 @@
   const SCENE = {
     night: {
       // the map, from the same four roofs and the same street
+      // Sodium, and more of it. Every warm tone in this scene is one light —
+      // a low-pressure lamp is nearly a single wavelength — so they all carry
+      // the same chroma. Deep and orange rather than yellow: the bookmark is
+      // the yellow, at a lightness nothing here comes near, and it stays the
+      // brightest mark on the page.
       map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
-             line: "#54452F", water: "#000000" },
-      glow: [255, 214, 150],
+             line: "#634321", water: "#000000" },
+      glow: [255, 186, 112],
       blank: "#000000", asphalt: "#191A20", avenue: "#131419",
-      walks: ["#4A3B2B", "#3E3830", "#54452F"],
+      walks: ["#57391E", "#493827", "#634321"],
       // The two faces the gap opens on. The same wall, in and out of what
       // light there is: one stock, the lower one a shade down. A different
       // colour for the shaded one read as a different building.
-      wallLit: "#6A5F4A", wallShade: "#5A513F",
+      wallLit: "#7D5D36", wallShade: "#6B502E",
       glass: "#0A0908", paint: "#6B6863",
-      cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
+      cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#59241C", "#6B6863"],
       coats: ["#141210", "#241C16"],
-      head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
+      head: [255, 233, 194], tail: [223, 22, 12], gallery: [226, 236, 255],
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
       // Half of what a block holds, so the gaps are the street's own and not
