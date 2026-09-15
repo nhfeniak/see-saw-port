@@ -243,8 +243,8 @@
   /* the controls stand off the map by exactly the gap between them */
   .map-controls {
     position: absolute;
-    left: var(--map-gap);
-    bottom: var(--map-gap);
+    left: calc(var(--map-pad-x) + var(--map-gap));
+    bottom: calc(var(--map-pad-y) + var(--map-gap));
     z-index: 3;
     display: flex;
     align-items: center;
@@ -281,12 +281,13 @@
      down its right side and a cross street at each end of it. It used to
      float on cloud with the city switched off underneath, which meant the
      two map pages and the two list pages were laid out nothing alike.
-     The map is the whole of its roof — no border, no inset — so the roof
-     colour underneath is only ever a backstop against a sliver showing. */
-  :root { --map-gap: 8px; }
+     The map is set into that roof rather than laid over the whole of it, so
+     a margin of the roof shows all the way round the opening. */
+  :root { --map-pad-x: 11px; --map-pad-y: 20px; --map-gap: 12px; }
   .mapframe {
     position: relative;
     margin-right: var(--gutter, 38px);
+    padding: var(--map-pad-y) var(--map-pad-x);
     background: var(--roof);
   }
 
