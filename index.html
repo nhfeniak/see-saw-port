@@ -23,8 +23,6 @@
     --ink:         #141319;
     --chrome:      #E8E7E7;   /* same stock as a white-membrane roof */
     --chrome2:     #D2CFCA;
-    --plate:       #EDEBE6;
-    --plate-ink:   #141319;
     --chrome-ink:  #141319;
     --mark:        #E8B830;   /* the yellow of a cab */
     --bookmark:    #FFD91A;
@@ -36,8 +34,6 @@
     --ink:         #F0EDE6;
     --chrome:      #26232B;   /* same stock as the palest night roof */
     --chrome2:     #35313C;
-    --plate:       #2A2730;
-    --plate-ink:   #F0EDE6;
     --chrome-ink:  #F0EDE6;
     --mark:        #E8B830;
     --bookmark:    #FFD91A;
@@ -173,12 +169,6 @@
   .entries { display: block; }
   .maplist { margin-top: 0; }
 
-  /* under the map there is no city to stand on — the listings sit on cloud */
-  .maplist .entry-main {
-    background: none;
-    color: var(--plate-ink);
-  }
-
   /* ---- one building per listing ----------------------------------
      column 1 is the roof, column 2 is the pavement beside it where the
      bookmark sits; the row underneath is the gap you see down through. */
@@ -249,26 +239,6 @@
 
   .empty { margin-right: var(--gutter, 38px); padding: 10px 11px; background: var(--chrome); color: var(--chrome-ink); }
 
-  /* Above the clouds there is no street to leave room for and nothing to
-     stand on, so the interface is just text across the full width. */
-  :root[data-mode="clouds"] h1.site,
-  :root[data-mode="clouds"] .meta,
-  :root[data-mode="clouds"] nav.top,
-  :root[data-mode="clouds"] .tabs,
-  :root[data-mode="clouds"] .empty {
-    margin-right: 0;
-    background: none;
-  }
-
-  /* the listings under a map have no street beside them either */
-  :root[data-mode="clouds"] .entry { grid-template-columns: 1fr; }
-
-  /* no roof up here, so the ring takes the colour of the text it sits beside
-     rather than of a building that is not being drawn */
-  :root[data-mode="clouds"] .bm:not(.on)::after { box-shadow: inset 0 0 0 1px var(--chrome-ink); }
-  :root[data-mode="clouds"] .entry-main { padding-right: 11px; }
-  :root[data-mode="clouds"] .head-roof { margin-right: 0; background: none; color: var(--chrome-ink); }
-
   /* ---- maps ---- */
   /* the controls stand off the map by exactly the gap between them */
   .map-controls {
@@ -307,15 +277,16 @@
     background: var(--location);
   }
 
-  /* the opening in the cloud is inset, so the glow has somewhere to fall */
-  /* The map runs the width of the screen less the margin the listings keep
-     from the left of it. The negative margin takes back the page's own right
-     padding, so what is left is the same on both sides. */
+  /* A map is a building like any other on the block: one roof, the street
+     down its right side and a cross street at each end of it. It used to
+     float on cloud with the city switched off underneath, which meant the
+     two map pages and the two list pages were laid out nothing alike. */
   :root { --map-pad-x: 11px; --map-pad-y: 20px; --map-gap: 8px; }
   .mapframe {
     position: relative;
-    margin-right: -12px;
+    margin-right: var(--gutter, 38px);
     padding: var(--map-pad-y) var(--map-pad-x);
+    background: var(--roof);
   }
 
   .mapwrap {
@@ -703,6 +674,15 @@
   const roofFor = (show) => roofOf(show.id);
   const roofStyle = (sk) => `--roof:${sk.roof};--roof-ink:${sk.ink}`;
 
+  // The roof a map sits on: any of the block's stock except the one the map
+  // itself is painted on, or the opening in the roof would not read as one.
+  function mapRoof(kind) {
+    const back = SCENE[kind].map.back.toUpperCase();
+    const table = (ROOFS[kind] || ROOFS.night).filter(([hex]) => hex.toUpperCase() !== back);
+    const roof = table[hashId("map-" + kind) % table.length][0];
+    return { roof, ink: contrast(roof, INK_DARK) >= contrast(roof, INK_LIGHT) ? INK_DARK : INK_LIGHT };
+  }
+
   function entryHTML(show) {
     const titleText = show.title || show.headline || show.name;
     const combinedTitle = show.artist ? `${show.artist} – ${titleText}` : titleText;
@@ -906,7 +886,8 @@
 
     return `
       ${subtabsHTML}
-      <div class="mapframe">
+      <div class="date-head" data-key="map-above"></div>
+      <div class="mapframe" style="${roofStyle(mapRoof(kind === "opening" ? "night" : "day"))}">
       <div class="mapwrap" id="mapwrap">
         <div class="mapinner" id="mapinner">
           ${points.map(p => `
@@ -922,6 +903,7 @@
         <button id="locate" class="loc" aria-label="show my location"></button>
       </div>
       </div>
+      <div class="date-head" data-key="map-below"></div>
       <div class="entries maplist" id="maplist"></div>
     `;
   }
@@ -1397,10 +1379,10 @@
       // Every one of those was the wrong way round here before.
       map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
              line: "#634821", water: "#000000" },
-      // One lamp. Every step of street brightness on the map is the base
-      // tone carried this far toward it, and the halo thrown out of the
-      // opening is the same light at its full strength — the glow around
-      // the map is the map's own, not a second warm beside it.
+      // The lamp the map is lit by. Every step of street brightness on it is
+      // the base tone carried this far toward this, and the controls are its
+      // peak. It used to be thrown out around the map as a halo as well, back
+      // when a map floated on cloud rather than sitting on a roof.
       glow: [255, 202, 122],
       blank: "#000000", asphalt: "#0E0D12", avenue: "#292119",
       walks: ["#594731", "#4D3C2D", "#655339"],
@@ -1460,7 +1442,7 @@
     },
   };
 
-  let cv = null, cx = null, sceneKind = "night", sceneMode = "street";
+  let cv = null, cx = null, sceneKind = "night";
   let peds = [], avCars = [], avParkA = [], slabs = [], avLights = [], winCol = "#fff";
   let crossStreets = new Map();
   let lastT = -1e9, lastPar = 0, rafId = null, clock = 0;
@@ -2134,13 +2116,6 @@
     cx.save();
     cx.translate(0, sy - bandTop);
 
-    if (sceneMode === "clouds") {
-      cx.fillStyle = S.map.back; cx.fillRect(0, -LIVE, W, H + 2 * LIVE);
-      drawMapGlow(S);
-      cx.restore();
-      return;
-    }
-
     // 1 — surfaces
     const T = -LIVE, HH = H + 2 * LIVE;                    // the window, with margin
     cx.fillStyle = S.blank; cx.fillRect(0, T, W, HH);     // nothing past the kerb
@@ -2298,7 +2273,6 @@
   function carry(par) {
     const d = par - lastPar;
     lastPar = par;
-    if (sceneMode !== "street") return;
     if (d) {
       for (const w of peds) w.y -= d;
       for (const c of avCars) c.y -= d;
@@ -2378,9 +2352,9 @@
     lastT = t; clock += dt;
     const sy = scrollY, g = geom();
     placeBand();
-    const boxes = sceneMode === "street" && !STILL ? intersections(g) : [];
+    const boxes = STILL ? [] : intersections(g);
     carry(par);
-    if (!reduceMotion && sceneMode === "street") {
+    if (!reduceMotion) {
       stepWalkers(dt, g, sceneH, boxes);
       stepAvenue(dt, g, sceneH, boxes);
       stepCross(dt, g, boxes);
@@ -2434,12 +2408,10 @@
     cv.style.top = bandTop + "px";
   }
 
-  function sceneSetKind(kind, mode) {
-    sceneMode = mode || "street";
-    document.documentElement.setAttribute("data-mode", sceneMode);
+  function sceneSetKind(kind) {
     // the basemap is recoloured out of this scene's own palette, and the
-    // controls take the brightest point of the halo around it — computed from
-    // the glow rather than copied off it, so it can never fall behind
+    // controls take the brightest point the lamp reaches — computed from the
+    // glow rather than copied off it, so it can never fall behind
     const S2 = SCENE[kind], toward = (a, b, t) => toHex(a.map((c, i) => c + (b[i] - c) * t));
     for (const [k, v] of Object.entries(S2.map)) rootStyle.setProperty("--map-" + k, v);
     const back = toRGB(S2.map.back), line = toRGB(S2.map.line);
@@ -2496,26 +2468,12 @@
       if (performance.now() - lastT > 32) {
         const sy = scrollY, par = sy * PARALLAX, g = geom();
         placeBand();
-        const boxes = sceneMode === "street" && !STILL ? intersections(g) : [];
+        const boxes = STILL ? [] : intersections(g);
         carry(par);
         draw(par, boxes, g, sy);
       }
     }, { passive: true });
     rafId = requestAnimationFrame(frame);
-  }
-
-  // ---- the map, seen through a break in the cloud ------------------
-  // Still, not animated. At night the city throws a glow out of the opening;
-  // it runs off the four sides and stops short of the corners, so it reads as
-  // a cross rather than a halo — the same shape the gallery light makes.
-  function drawMapGlow(S) {
-    const wrap = document.getElementById("mapwrap");
-    if (!wrap || !S.glow) return;
-    const r = wrap.getBoundingClientRect(), D = 44;
-    beam(R(r.left), R(r.top - D), R(r.width), D, S.glow, "up", .5);
-    beam(R(r.left), R(r.bottom), R(r.width), D, S.glow, "down", .5);
-    beam(R(r.left - D), R(r.top), D, R(r.height), S.glow, "left", .5);
-    beam(R(r.right), R(r.top), D, R(r.height), S.glow, "right", .5);
   }
 
 
@@ -2541,8 +2499,7 @@
     const content = document.getElementById("content");
     // Openings is an opening night; On View is daylight. The scene follows the
     // page rather than the system theme, which is the whole point of it.
-    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night",
-                 currentPage.endsWith("-map") ? "clouds" : "street");
+    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
     // don't keep polling GPS on the list pages; the map branch restarts it
     stopLocationTimer();
 
@@ -2596,7 +2553,7 @@
     // than the first time that heading scrolls into view. There are never more
     // than a dozen and it is a millisecond here; done during a flick it is a
     // dropped frame, at whatever speed happens to reach the next heading.
-    if (sceneMode === "street") {
+    {
       const S = SCENE[sceneKind], W = geom().fieldW;
       for (const el of headEls) crossFor(el.dataset.key, S, W);
     }
@@ -2607,8 +2564,7 @@
   async function main() {
     document.getElementById("content").innerHTML = "loading...";
     restoreView();
-    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night",
-                 currentPage.endsWith("-map") ? "clouds" : "street");
+    sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
     sceneStart();
     renderTopNav();
     loadBookmarks();
