@@ -1353,9 +1353,6 @@
   // looking straight down at is visible. Down the page nothing is rounded
   // anyway; across it this lands on a whole pixel when it is drawn.
   const LANE_OFF = PARK_W + (LANE_W - CAR_W) / 2;
-  // How far a lamp sits in from the corner it is nearest, and what is left
-  // across the car for the beam to be thrown from.
-  const LAMP_IN = 1, LAMP_W = CAR_W - 2 * LAMP_IN;
   // len, then the glass as fractions of it: bonnet before the windscreen,
   // and where the back light starts. A truck has a cargo body instead.
   const VEHICLES = [
@@ -2096,14 +2093,24 @@
   // never the pattern.
   const BAR = Math.max(2, R(M(0.86)));
 
-  function zebra(x, y, across, along, barsRunDown, colour) {
+  // runsOn: the far end of this crossing is the crop and not a kerb — the
+  // avenue carries on past the edge of the screen and so does the paint on
+  // it. The pattern keeps its pitch and the last bar is simply cut short by
+  // the crop, which is what a road running out of the frame looks like.
+  function zebra(x, y, across, along, barsRunDown, colour, runsOn) {
     const n = Math.max(2, Math.floor((across / BAR - 1) / 2));
     const start = (across - (2 * n - 1) * BAR) / 2;
+    const last = runsOn ? Math.ceil((across - start) / (2 * BAR)) : n;
     cx.fillStyle = colour;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < last; i++) {
       const o = start + BAR * 2 * i;
-      if (barsRunDown) cx.fillRect(R(x + o), y, BAR, along);
-      else cx.fillRect(R(x), y + o, along, BAR);
+      if (o >= across) break;
+      if (barsRunDown) {
+        const a = R(x + o), b = Math.min(a + BAR, R(x + across));
+        if (b > a) cx.fillRect(a, y, b - a, along);
+      } else {
+        cx.fillRect(R(x), y + o, along, Math.min(BAR, across - o));
+      }
     }
   }
 
@@ -2113,9 +2120,9 @@
   // standing in one of the cross street's pavements.
   function drawCrossPaint(g, b, S) {
     zebra(g.walkX, b.roadTop, ROAD_W, WALK_W, false, S.paint);
-    const av = g.edge - g.roadX;                   // the avenue, kerb to kerb
-    zebra(g.roadX, b.top, av, WALK_W, true, S.paint);
-    zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint);
+    const av = g.edge - g.roadX;                   // the avenue, kerb to crop
+    zebra(g.roadX, b.top, av, WALK_W, true, S.paint, true);
+    zebra(g.roadX, b.roadBot, av, WALK_W, true, S.paint, true);
   }
 
   // Everything below is written in screen coordinates, as it always was. The
@@ -2175,22 +2182,19 @@
         if (L.side) beam(L.x, b.roadBot, L.len, WALK_W, S.gallery, "up", .5);
         else        beam(L.x, b.top, L.len, WALK_W, S.gallery, "down", .5);
       }
-      // Lamps are inboard of the car's corners, not flush with them, and the
-      // beam has to be too. Drawn the car's full width it sat on a fractional
-      // pixel down the page, and its own soft edge row — much brighter than
-      // the car's, because the beam is the bright thing — ran on past the nose
-      // as a hairline either side of it. A pixel in and the soft edge falls
-      // inside the silhouette, which is where a headlamp is.
+      // The beam is the car's full width. Bringing it in a pixel each side, so
+      // its soft edge row fell inside the silhouette rather than running on
+      // past the nose, was tidier and looked worse.
       for (const c of avCars) {                     // start 2px inside the car
-        beam(R(g.lane) + LAMP_IN, c.y + c.spec.len - 2, LAMP_W, MR(7), c.head || S.head, "down", .5);
-        beam(R(g.lane) + LAMP_IN, c.y - MR(3.6), LAMP_W, MR(3.9), S.tail, "up", .38);
+        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), c.head || S.head, "down", .5);
+        beam(R(g.lane), c.y - MR(3.6), CAR_W, MR(3.9), S.tail, "up", .38);
       }
       for (const b of boxes) {
         const st = b.st;
         const laneY = b.roadTop + LANE_OFF;
         for (const c of st.cars) {
-          beam(c.x + c.spec.len - 2, laneY + LAMP_IN, MR(5.9), LAMP_W, c.head || S.head, "right", .5);
-          beam(c.x - MR(3.1), laneY + LAMP_IN, MR(3.4), LAMP_W, S.tail, "left", .32);
+          beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, c.head || S.head, "right", .5);
+          beam(c.x - MR(3.1), laneY, MR(3.4), CAR_W, S.tail, "left", .32);
         }
       }
     }
