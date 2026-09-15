@@ -1314,7 +1314,7 @@
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
       density: { peds: 6.0, crossPeds: 3.0, cars: 6, park: .70,
-                 crossCars: 3, crossPark: .50 },
+                 crossCars: 1.3, crossPark: .50 },
       night: true,
     },
     day: {
@@ -1332,7 +1332,7 @@
       // daylight on a weekday afternoon, not an opening: few people about,
       // but the kerb is full — everybody who is here has parked and gone in
       density: { peds: 0.7, crossPeds: 0.7, cars: 2, park: .50,
-                 crossCars: 1, crossPark: .40 },
+                 crossCars: 0.5, crossPark: .40 },
       night: false,
     },
   };
@@ -1464,7 +1464,11 @@
     if (!c) {
       const d = S.density;
       c = { cars: [], parkT: [], parkB: [], occ: null, lights: [] };
-      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-MR(26), W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
+      // Traffic by the length of the block, like its parking and its crowd.
+      // A flat three put two cars on a street however long it was, which on a
+      // wide one is an empty road.
+      for (let i = 0, n = R(W / 100 * d.crossCars); i < n; i++)
+        c.cars.push({ x: rnd(-MR(26), W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = MR(rnd(-10.3, 2.6));
         while (x < W) {
@@ -1747,7 +1751,9 @@
       queue(st.cars, "x", (c) => past.has(c) ? Infinity
                                : b.blocked || !(st.occ && st.occ.car === c) ? g.walkX - 4
                                : Infinity);
-      for (const c of st.cars) if (c.x > g.edge + MR(5)) c.x = -MR(28) - Math.random() * MR(21);
+      // round the corner again just out of sight, not from half a block off:
+      // the gap behind a car that has left was most of a minute
+      for (const c of st.cars) if (c.x > g.edge + MR(5)) c.x = -c.spec.len - Math.random() * MR(10);
     }
   }
 
