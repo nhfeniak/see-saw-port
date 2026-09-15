@@ -1402,13 +1402,22 @@
       glass: "#0C0A08", paint: "#72634F",
       cars: ["#1F1914", "#1F1914", "#3E3428", "#4E4436", "#3B1F16", "#867156"],
       coats: ["#181410", "#28201A"],
-      head: [250, 223, 177], tail: [223, 22, 12], gallery: [216, 235, 255],
+      // Halogen, and the quarter of the fleet that is not. In the photograph
+      // 18% of everything bright enough to be a light source rather than a lit
+      // surface reads cool rather than warm; among cars alone it is higher,
+      // because the ones with discharge lamps in them are the newer ones.
+      head: [250, 223, 177], headCool: [205, 221, 240],
+      tail: [223, 22, 12], gallery: [216, 235, 255],
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
       // Half of what a block holds, so the gaps are the street's own and not
       // the headway's: at capacity every car is at its following distance and
       // the traffic comes out evenly spaced, which is a queue.
-      density: { peds: 6.0, crossPeds: 3.0, cars: 0.8, park: .70,
+      // A car now gets a screen of run-up above the top of the street before
+      // it drives back into sight, so at any moment a third of the traffic is
+      // out of shot up there. Measured: 0.8 left 4.96 cars on screen against
+      // the 6.27 this looked like before; 1.0 puts it back at 6.11.
+      density: { peds: 6.0, crossPeds: 3.0, cars: 1.0, park: .70,
                  crossCars: 0.85, crossPark: .50 },
       night: true,
     },
@@ -1432,7 +1441,7 @@
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
-      head: null, tail: null, gallery: null,
+      head: null, headCool: null, tail: null, gallery: null,
       // daylight on a weekday afternoon, not an opening: few people about,
       // but the kerb is full — everybody who is here has parked and gone in
       density: { peds: 0.7, crossPeds: 0.7, cars: 0.5, park: .50,
@@ -1500,7 +1509,10 @@
   // reads as a crowd, which is what the cross streets already looked like.
   function makeCar(S, y) {
     const v = spec();
-    return { y, spec: v, speed: MR(rnd(6.7, 9.4)), color: pick(S.cars), stopped: false };
+    // A car keeps its own headlamps for as long as it exists, so one does not
+    // change temperature as it comes back round the street.
+    return { y, spec: v, speed: MR(rnd(6.7, 9.4)), color: pick(S.cars), stopped: false,
+             head: S.headCool && Math.random() < .25 ? S.headCool : S.head };
   }
 
   // Pavement drifts between its three tones in long even runs broken by short
@@ -1574,7 +1586,10 @@
     }
 
     avCars = [];
-    // by the length of the avenue on screen, like everything else on it
+    // by the length of the avenue on screen, like everything else on it —
+    // and seeded only in the live band. Seeding into the run-up above it
+    // crowds that band, and the spacing pass there then pushes cars out past
+    // the far side of it, which puts the two ends back in each other's way.
     for (let i = 0, n = R((H + 2 * LIVE) / 100 * S.density.cars); i < n; i++)
       avCars.push(makeCar(S, rnd(-LIVE, H + LIVE)));
     avParkA = parkRow(S, H);
@@ -1836,7 +1851,13 @@
       // and a car held at the line by people on the crossing is not using the
       // junction, so it gives it up rather than blocking the avenue with it
       const stuck = st.occ.side === "cr" && b.blocked && c.x + c.spec.len < g.walkX - 3;
-      if (clear || gone || stuck) st.occ = null; else return;
+      // or the car it was given to has been recycled to the top of the street
+      // while holding it. It can only move toward the junction, so a whole
+      // junction's depth back up the road means it is not the same journey —
+      // and a junction cached by date group outlives the box being on screen,
+      // so one left held this way stays held for the life of the page.
+      const wrapped = st.occ.side === "av" && c.y + c.spec.len < b.top - CROSS_H;
+      if (clear || gone || stuck || wrapped) st.occ = null; else return;
     }
     let best = null;
     const consider = (car, t, side) => { if (!best || t < best.t) best = { t, side, car }; };
@@ -2137,14 +2158,14 @@
         else        beam(L.x, b.top, L.len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
-        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), S.head, "down", .5);
+        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), c.head || S.head, "down", .5);
         beam(R(g.lane), c.y - MR(3.6), CAR_W, MR(3.9), S.tail, "up", .38);
       }
       for (const b of boxes) {
         const st = b.st;
         const laneY = b.roadTop + LANE_OFF;
         for (const c of st.cars) {
-          beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, S.head, "right", .5);
+          beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, c.head || S.head, "right", .5);
           beam(c.x - MR(3.1), laneY, MR(3.4), CAR_W, S.tail, "left", .32);
         }
       }
@@ -2273,25 +2294,44 @@
     // against every car on the road, one that had drifted far down the page
     // would send every return after it further down still, and none of them
     // ever came back.
-    const near = MR(30);
+    // The two ends used to overlap, and it was the whole of the trouble at the
+    // bottom of the street. A car that had driven off the bottom came back at
+    // -LIVE minus its length minus up to 198px of run-up — which is below the
+    // line the other test reads as having been carried off the TOP, so it was
+    // sent straight back to the bottom, and back to the top, sixty times a
+    // second. Simulated: every car reversing every frame, 86,000 reversals in
+    // four minutes, and an average of no cars at all actually on the screen.
+    // What you saw of the traffic was whatever the clamp in queue() made of a
+    // heap of cars landing together just past the bottom edge.
+    //
+    // So a returning car gets a screen of run-up rather than a couple of car
+    // lengths, and carries a mark until it has reached the live band once.
+    // While it is marked, the test for a car carried off the top gives it two
+    // screens of grace against a run-up of at most one. Twice, not once: at
+    // once the deepest placement sits exactly on the line, and a car put there
+    // during a fling was over it on the next frame and back again on the one
+    // after — sixteen reversals a second at the far end of the run-up. A
+    // screen of daylight between the two means no placement can be near it.
+    const near = MR(30), lead = sceneH;
     for (const c of avCars) {
       if (c.y > far) {
-        let y = -LIVE - c.spec.len - MR(rnd(0, 34));
+        let y = -LIVE - c.spec.len - rnd(0, lead);
         for (const o of avCars) {
-          if (o === c || o.y + o.spec.len > -LIVE + near) continue;
+          if (o === c || o.runUp || o.y + o.spec.len > -LIVE + near) continue;
           const room = o.y - gapFor(o) - c.spec.len;
           if (room < y) y = room;
         }
-        c.y = y;
-      } else if (c.y + c.spec.len < -LIVE) {
+        c.y = y; c.runUp = true;
+      } else if (c.y + c.spec.len < -LIVE - (c.runUp ? 2 * lead : 0)) {
         let y = far + MR(rnd(0, 34));
         for (const o of avCars) {
           if (o === c || o.y < far - near) continue;
           const room = o.y + o.spec.len + gapFor(c);
           if (room > y) y = room;
         }
-        c.y = y;
+        c.y = y; c.runUp = false;
       }
+      if (c.runUp && c.y + c.spec.len > -LIVE) c.runUp = false;   // it has arrived
     }
     for (const w of peds) {
       if (w.axis !== "v") continue;
