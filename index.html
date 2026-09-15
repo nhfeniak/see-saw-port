@@ -65,6 +65,8 @@
 
   /* the street lives on a fixed canvas behind everything; roofs are opaque
      DOM on top of it, so you only see down in the gaps they leave */
+  /* Its own compositor layer: it is a fixed thing under a scrolling page, and
+     without this the page above it can be repainted against it every frame. */
   #scene {
     position: fixed;
     top: 0;
@@ -72,6 +74,7 @@
     z-index: 0;
     pointer-events: none;
     display: block;
+    will-change: transform;
   }
 
   body > * { position: relative; z-index: 1; }
@@ -1410,12 +1413,22 @@
   // Lit shopfronts along a building: irregular gaps, and each one as long as
   // whatever is behind the glass. Laid out along one axis for a whole tile or
   // a whole block, so a gallery keeps its frontage instead of flickering.
+  //
+  // Nothing may overhang the end of the run, and the run must end a gap short
+  // of it. The avenue's repeats every tile, so a light that crossed the seam
+  // was drawn twice — once from each side — and came out twice as bright; and
+  // one that ran right to the end butted onto the next tile's first and read
+  // as a single impossible shopfront. The last one is shortened to fit rather
+  // than cut off, and never below the narrowest frontage there is.
+  const SHOP_MIN = 2.6, SHOP_MAX = 13.5, SHOP_GAP = 5.8;   // metres
+
   function lightRun(span) {
     const out = [];
-    for (let a = M(rnd(0, 19)); a < span; ) {
-      const len = M(rnd(2.6, 13.5));
+    let a = M(rnd(0, 19));
+    while (a + M(SHOP_MIN + SHOP_GAP) < span) {
+      const len = Math.min(M(rnd(SHOP_MIN, SHOP_MAX)), span - a - M(SHOP_GAP));
       out.push({ a, len });
-      a += len + M(rnd(5.8, 34));
+      a += len + M(rnd(SHOP_GAP, 34));
     }
     return out;
   }
@@ -1477,7 +1490,8 @@
         }
       }
       // one frontage per side of the street, facing the pavement below it
-      for (const side of [0, 1]) for (const L of lightRun(W)) c.lights.push({ x: L.a, len: L.len, side });
+      for (const side of [0, 1])
+        for (const L of lightRun(W - CORNER)) c.lights.push({ x: L.a, len: L.len, side });
       // A block only ever filled up when someone walked round the corner onto
       // it, so every street started deserted. It gets its own crowd instead,
       // in the same pool as the avenue's, free to swap between the two.
@@ -1889,10 +1903,8 @@
         }
       }
       for (const b of boxes) for (const L of b.st.lights) {  // and on the block
-        const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
-        if (len <= 0) continue;
-        if (L.side) beam(x, b.roadBot, len, WALK_W, S.gallery, "up", .5);
-        else        beam(x, b.top, len, WALK_W, S.gallery, "down", .5);
+        if (L.side) beam(L.x, b.roadBot, L.len, WALK_W, S.gallery, "up", .5);
+        else        beam(L.x, b.top, L.len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
         beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), S.head, "down", .5);
@@ -1920,8 +1932,7 @@
       const y = above ? b.top - wall : b.bot;
       for (const L of b.st.lights) {
         if (L.side !== (above ? 0 : 1)) continue;
-        const x = R(L.x), len = Math.min(R(L.len), R(g.walkX) - CORNER - x);
-        if (len > 0) cx.fillRect(x, y, len, wall);
+        cx.fillRect(L.x, y, L.len, wall);
       }
     }
 
@@ -2001,11 +2012,17 @@
   // tallest height it has been and the spare hangs below the fold, so a height
   // that shrinks and grows again costs nothing.
   function sizeCanvas() {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    // One canvas pixel per screen pixel. Capped at 2, a phone at 3 was having
+    // every frame resampled up by half on its way to the glass — which is a
+    // shimmer on every edge that moves, and no amount of care about where the
+    // edges are put can help with it. The CSS size is derived back from the
+    // bitmap rather than set alongside it, so the two cannot disagree by the
+    // rounding and leave the whole scene on a fractional scale.
+    const dpr = Math.min(devicePixelRatio || 1, 3);
     sceneH = Math.max(sceneH, innerHeight);
     const w = Math.round(innerWidth * dpr), h = Math.round(sceneH * dpr);
-    cv.style.width = innerWidth + "px";
-    cv.style.height = sceneH + "px";
+    cv.style.width = w / dpr + "px";
+    cv.style.height = h / dpr + "px";
     if (cv.width === w && cv.height === h) return;   // assigning either clears it
     cv.width = w; cv.height = h;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
