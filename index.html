@@ -1387,11 +1387,11 @@
       // Every one of those was the wrong way round here before.
       map: { back: "#26232B", block: "#1F1C25", grid: "#131419",
              line: "#634821", water: "#000000" },
-      // Two warms, not one. The lamp the map is lit by is the deeper of them
-      // and every step of street brightness is carried toward it; the halo
-      // thrown out of the opening is the older, paler one, because that is
-      // light travelling through air rather than falling on a surface.
-      glow: [255, 202, 122], halo: [255, 214, 150],
+      // One lamp. Every step of street brightness on the map is the base
+      // tone carried this far toward it, and the halo thrown out of the
+      // opening is the same light at its full strength — the glow around
+      // the map is the map's own, not a second warm beside it.
+      glow: [255, 202, 122],
       blank: "#000000", asphalt: "#0E0D12", avenue: "#292119",
       walks: ["#594731", "#4D3C2D", "#655339"],
       // The two faces the gap opens on, and the darkest thing in the scene —
@@ -1420,7 +1420,7 @@
       // of it. The dots keep their black; they are not part of the map.
       map: { back: "#F0EFED", block: "#C3D3BE", grid: "#E9E8E6",
              line: "#A0A4A8", water: "#93A8AE" },   // the Hudson, overcast
-      glow: null, halo: null,
+      glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
       wallLit: "#DED6C4", wallShade: "#6E7076",
@@ -2371,14 +2371,20 @@
     const S2 = SCENE[kind], toward = (a, b, t) => toHex(a.map((c, i) => c + (b[i] - c) * t));
     for (const [k, v] of Object.entries(S2.map)) rootStyle.setProperty("--map-" + k, v);
     const back = toRGB(S2.map.back), line = toRGB(S2.map.line);
-    rootStyle.setProperty("--map-btn", S2.halo ? toward(back, S2.halo, .5) : "#FFFFFF");
+    rootStyle.setProperty("--map-btn", S2.glow ? toward(back, S2.glow, .5) : "#FFFFFF");
     rootStyle.setProperty("--map-btnink", INK_DARK);
     // Every step of street brightness is the same light — the base tone
     // carried that much further toward the sodium the map itself throws out.
     // Daylight has no such thing, so every step is the street's own colour and
     // the grid comes out flat, which is what daylight looks like.
+    // A side street is the same stock carried the other way, toward the
+    // ground the map sits on rather than toward the lamp. Most of the map is
+    // side streets — ten thousand of them against two thousand arterials —
+    // so they have to sit down near the ground or the grid is all you see
+    // and Broadway, the bridges and the avenues have nothing to stand out
+    // against.
     const lamp = (t) => S2.glow ? toward(line, S2.glow, t) : S2.map.line;
-    rootStyle.setProperty("--map-line0", S2.glow ? toward(line, back, .45) : S2.map.line);
+    rootStyle.setProperty("--map-line0", S2.glow ? toward(line, back, .72) : S2.map.line);
     rootStyle.setProperty("--map-halo", lamp(.12));
     rootStyle.setProperty("--map-line2", lamp(.28));
     rootStyle.setProperty("--map-line3", lamp(.50));
@@ -2432,12 +2438,12 @@
   // a cross rather than a halo — the same shape the gallery light makes.
   function drawMapGlow(S) {
     const wrap = document.getElementById("mapwrap");
-    if (!wrap || !S.halo) return;
+    if (!wrap || !S.glow) return;
     const r = wrap.getBoundingClientRect(), D = 44;
-    beam(R(r.left), R(r.top - D), R(r.width), D, S.halo, "up", .5);
-    beam(R(r.left), R(r.bottom), R(r.width), D, S.halo, "down", .5);
-    beam(R(r.left - D), R(r.top), D, R(r.height), S.halo, "left", .5);
-    beam(R(r.right), R(r.top), D, R(r.height), S.halo, "right", .5);
+    beam(R(r.left), R(r.top - D), R(r.width), D, S.glow, "up", .5);
+    beam(R(r.left), R(r.bottom), R(r.width), D, S.glow, "down", .5);
+    beam(R(r.left - D), R(r.top), D, R(r.height), S.glow, "left", .5);
+    beam(R(r.right), R(r.top), D, R(r.height), S.glow, "right", .5);
   }
 
 
