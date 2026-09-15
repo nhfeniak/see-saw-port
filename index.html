@@ -174,7 +174,7 @@
     gap: 6px;
     background: var(--roof);
     color: var(--roof-ink);
-    padding: 9px 8px 10px 11px;   /* the bookmark's own box is the right margin */
+    padding: 9px 11px 10px;
   }
 
   .entry-text { flex: 1; min-width: 0; }
@@ -195,7 +195,7 @@
   /* ---- bookmark: a ring on the roof, filled when marked ---- */
   .bm {
     flex: none;
-    width: 22px;      /* the ring is 15 of it: the rest is thumb, not margin */
+    width: 30px;
     height: 30px;
     padding: 0;
     background: none;
@@ -1211,8 +1211,10 @@
   // ==================================================================
   // The street, one floor below the listings.
   //
-  // Scale comes from the pavement: a Tribeca sidewalk runs ~3.8 m, drawn 24 px,
-  // so 6.2 px/m. Every size and speed below is a real quantity through it.
+  // Scale comes from the pavement: a Tribeca sidewalk runs ~3.8 m, drawn 18 px,
+  // so 4.65 px/m. Every size and speed below is a real quantity through it —
+  // which is the point of doing it this way: rescaling the street is this one
+  // number, and nothing drifts out of proportion with it.
   //
   // Camera 220 m up over 20 m rooftops — six cast-iron storeys. Image
   // motion goes as 1/depth, so the street runs at (220-20)/220 = 0.909 of
@@ -1222,7 +1224,7 @@
   // five cars per scene, and no more.
   // ==================================================================
 
-  const PX_PER_M = 6.2;
+  const PX_PER_M = 4.65;
   const M = (m) => m * PX_PER_M;
   const ROOF_H_M = 20, CAM_H_M = 220;
   const PARALLAX = (CAM_H_M - ROOF_H_M) / CAM_H_M;
@@ -1231,28 +1233,31 @@
   // of an 11 ft lane. Taken from metres so the whole street scales off PX_PER_M.
   //
   // The carriageway and the traffic on it are drawn a quarter over life size
-  // against the pavement beside them. A lane in true proportion to a 24px
-  // pavement leaves a car thirteen pixels across, which is not enough for it
-  // to read as a car; the pavement and the people on it need no such help.
+  // against the pavement beside them. A lane in true proportion to the
+  // pavement leaves a car too few pixels across to read as a car at all; the
+  // pavement and the people on it need no such help.
   const ROAD_X = 1.25;
   const MR = (m) => m * PX_PER_M * ROAD_X;
   const WALK_W = Math.round(M(3.8));     // 12 ft
   const PARK_W = Math.round(MR(2.6));    // 8 ft
   const LANE_W = Math.round(MR(3.3));    // 11 ft
-  const AV_ROAD = PARK_W + LANE_W;
+  // The avenue is drawn as far as the middle of its travel lane and no
+  // further: the street runs off the side of the page rather than stopping at
+  // a kerb that is not there.
+  const AV_ROAD = PARK_W + Math.round(LANE_W / 2);
   // The pavement column beside the roofs. On a wide screen there is space to
   // the right of the listings and the street simply overhangs the column, so
-  // the roofs keep their width; on a phone there is none, and the column has
-  // to widen until the whole travel lane and a little air land on the screen.
-  const GUTTER_MIN = 38, STREET_AIR = 6;
+  // the roofs keep their width; on a phone there is none, and the column
+  // widens until the crop lands exactly on the edge of the screen.
+  const GUTTER_MIN = WALK_W + 12;
   let GUTTER = GUTTER_MIN;
   const R = Math.round;              // everything lands on whole pixels
-  const PED_R = 4;                   // every person the same size
+  const PED_R = Math.round(M(0.62));  // every person the same size
   const CORNER = PED_R * 2;          // no shopfront closer than this to a corner
   const DOT_D = 11;                  // a gallery on the map: a shade over a person
   const ROAD_W = PARK_W * 2 + LANE_W;    // the cross street shows its full section
   const CROSS_H = WALK_W * 2 + ROAD_W;
-  const TILE = 900;
+  const TILE = Math.round(M(145));   // the pavement pattern repeats
 
   // The listings are built to the same street: the pavement column beside a
   // roof is GUTTER wide and the gap at a heading is a junction deep. Handing
@@ -1262,13 +1267,12 @@
   function fitStreet() {
     const el = document.getElementById("content");
     const right = el ? el.getBoundingClientRect().right : Math.min(innerWidth, 640) - 12;
-    GUTTER = Math.max(GUTTER_MIN, Math.round(WALK_W + AV_ROAD + STREET_AIR - (innerWidth - right)));
+    GUTTER = Math.max(GUTTER_MIN, Math.round(WALK_W + AV_ROAD - (innerWidth - right)));
     rootStyle.setProperty("--gutter", GUTTER + "px");
   }
   fitStreet();
   rootStyle.setProperty("--cross-h", CROSS_H + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + R((ROAD_W - 26) / 2)) + "px");
-  rootStyle.setProperty("--ped-d", PED_R * 2 + "px");
   rootStyle.setProperty("--dot-d", DOT_D + "px");
 
   // One width for everything. Real vehicles vary by half a metre, but at this
@@ -1386,10 +1390,10 @@
     let y = 0;
     while (y < TILE) {
       const calm = Math.random() < 0.62;
-      const end = y + (calm ? rnd(140, 330) : rnd(50, 110));
+      const end = y + (calm ? M(rnd(22.6, 53.2)) : M(rnd(8.1, 17.7)));
       const steady = calm ? pick(S.walks) : null;
       while (y < end && y < TILE) {
-        const h = calm ? rnd(34, 90) : rnd(12, 28);
+        const h = calm ? M(rnd(5.5, 14.5)) : M(rnd(1.9, 4.5));
         slabs.push({ y, h, c: steady || pick(S.walks) });
         y += h;
       }
@@ -1401,20 +1405,20 @@
   // a whole block, so a gallery keeps its frontage instead of flickering.
   function lightRun(span) {
     const out = [];
-    for (let a = rnd(0, 120); a < span; ) {
-      const len = rnd(16, 84);
+    for (let a = M(rnd(0, 19)); a < span; ) {
+      const len = M(rnd(2.6, 13.5));
       out.push({ a, len });
-      a += len + rnd(36, 210);
+      a += len + M(rnd(5.8, 34));
     }
     return out;
   }
 
   function parkRow(S, H) {
     const row = [];
-    let y = rnd(-80, 20);
-    while (y < H + 80) {
-      if (Math.random() < S.density.park) { const c = makeCar(S, y); row.push(c); y += c.spec.len + rnd(10, 26); }
-      else y += rnd(50, 110);                // hydrant, driveway, or just a space
+    let y = MR(rnd(-10.3, 2.6));
+    while (y < H + MR(10)) {
+      if (Math.random() < S.density.park) { const c = makeCar(S, y); row.push(c); y += c.spec.len + MR(rnd(1.3, 3.4)); }
+      else y += MR(rnd(6.5, 14.2));          // hydrant, driveway, or just a space
     }
     return row;
   }
@@ -1429,15 +1433,15 @@
     };
     peds = [];
     for (let i = 0, n = R(H / 100 * S.density.peds); i < n; i++)
-      peds.push(walker(rnd(-40, H + 40), Math.random() < .5 ? 1 : -1, 0));
+      peds.push(walker(rnd(-M(6.5), H + M(6.5)), Math.random() < .5 ? 1 : -1, 0));
     if (S.night) for (let k = 0; k < 4; k++) {       // knots standing and talking
       const y = rnd(0, H);
       for (let m = 0, n = 2 + ((Math.random() * 3) | 0); m < n; m++)
-        peds.push(walker(y + rnd(-7, 7), 0, Infinity));
+        peds.push(walker(y + M(rnd(-1.1, 1.1)), 0, Infinity));
     }
 
     avCars = [];
-    for (let i = 0; i < S.density.cars; i++) avCars.push(makeCar(S, rnd(-200, H + 200)));
+    for (let i = 0; i < S.density.cars; i++) avCars.push(makeCar(S, rnd(-MR(26), H + MR(26))));
     avParkA = parkRow(S, H);
 
     crossStreets.clear();
@@ -1453,12 +1457,12 @@
     if (!c) {
       const d = S.density;
       c = { cars: [], parkT: [], parkB: [], occ: null, lights: [] };
-      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-200, W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
+      for (let i = 0; i < d.crossCars; i++) c.cars.push({ x: rnd(-MR(26), W), spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
-        let x = rnd(-80, 20);
+        let x = MR(rnd(-10.3, 2.6));
         while (x < W) {
-          if (Math.random() < d.crossPark) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + rnd(10, 26); }
-          else x += rnd(60, 130);
+          if (Math.random() < d.crossPark) { const v = spec(); c[row].push({ x, spec: v, color: pick(S.cars) }); x += v.len + MR(rnd(1.3, 3.4)); }
+          else x += MR(rnd(7.7, 16.8));
         }
       }
       // one frontage per side of the street, facing the pavement below it
@@ -1470,7 +1474,7 @@
         for (let i = 0, n = R(W / 100 * d.crossPeds); i < n; i++) {
           const v = M(rnd(1.1, 1.6)), off = rnd(PED_R, WALK_W - PED_R);
           peds.push({ axis: "h", key, side, off, lane: off,
-                      x: rnd(4, W - 4), y: -999, dir: Math.random() < .5 ? 1 : -1,
+                      x: rnd(PED_R, W - PED_R), y: -999, dir: Math.random() < .5 ? 1 : -1,
                       speed: v, base: v, r: PED_R, color: pick(S.coats), hold: 0 });
         }
       crossStreets.set(key, c);
@@ -1554,7 +1558,7 @@
       for (const o of lanes.get(bucket(w))) {
         if (o === w) continue;
         const ahead = (w.axis === "v" ? o.y - w.y : o.x - w.x) * w.dir;
-        if (ahead < 0 || ahead > 30 || Math.abs(o.off - w.off) > 8) continue;
+        if (ahead < 0 || ahead > M(4.8) || Math.abs(o.off - w.off) > PED_R * 2) continue;
         if (o.dir === w.dir) limit = Math.min(limit, o.speed * .9);
         else if (!met || ahead < met.ahead) met = { o, ahead };   // the nearest
       }
@@ -1569,16 +1573,16 @@
       } else w.dodge = 0;
       w.speed += (limit - w.speed) * Math.min(1, dt * 3);
       target = Math.min(WALK_W - PED_R, Math.max(PED_R, target));
-      w.off += Math.max(-9 * dt, Math.min(9 * dt, target - w.off));
+      w.off += Math.max(-M(1.45) * dt, Math.min(M(1.45) * dt, target - w.off));
 
       if (w.axis === "v") {
         w.x = g.walkX + w.off;
         w.y += w.dir * w.speed * dt;
-        if (w.y < -60) w.y = H + 60;
-        if (w.y > H + 60) w.y = -60;
+        if (w.y < -M(9.7)) w.y = H + M(9.7);
+        if (w.y > H + M(9.7)) w.y = -M(9.7);
         for (const b of boxes) {                                  // a corner
-          const near = w.y > b.top + 3 && w.y < b.top + WALK_W - 3;
-          const far = w.y > b.roadBot + 3 && w.y < b.roadBot + WALK_W - 3;
+          const near = w.y > b.top + PED_R && w.y < b.top + WALK_W - PED_R;
+          const far = w.y > b.roadBot + PED_R && w.y < b.roadBot + WALK_W - PED_R;
           if ((near || far) && Math.random() < 1.5 * dt) {
             w.axis = "h"; w.dir = -1; w.key = b.key; w.side = near ? 0 : 1;
             w.off = w.lane = Math.min(WALK_W - PED_R, Math.max(PED_R,
@@ -1593,7 +1597,7 @@
           w.axis = "v"; w.key = null;
           w.off = w.lane = rnd(PED_R, WALK_W - PED_R);
           w.dir = Math.random() < .5 ? 1 : -1;
-        } else if (w.dir < 0 && w.x < 6) w.dir = 1;
+        } else if (w.dir < 0 && w.x < M(1)) w.dir = 1;
       }
     }
     separate(g);
@@ -1723,7 +1727,7 @@
             }
             return best;
           });
-    for (const c of avCars) if (c.y > H + 220) c.y = -220 - Math.random() * 200;
+    for (const c of avCars) if (c.y > H + MR(28)) c.y = -MR(28) - Math.random() * MR(26);
   }
 
 
@@ -1736,7 +1740,7 @@
       queue(st.cars, "x", (c) => past.has(c) ? Infinity
                                : b.blocked || !(st.occ && st.occ.car === c) ? g.walkX - 4
                                : Infinity);
-      for (const c of st.cars) if (c.x > g.edge + 40) c.x = -220 - Math.random() * 160;
+      for (const c of st.cars) if (c.x > g.edge + MR(5)) c.x = -MR(28) - Math.random() * MR(21);
     }
   }
 
@@ -1797,7 +1801,7 @@
     cx.beginPath(); cx.rect(0, top, bl, CROSS_H); cx.clip();
     for (const s of slabs) {
       cx.fillStyle = s.c;
-      const sx = R(s.y - 40), sw = R(s.h) + 1;
+      const sx = R(s.y - M(6.5)), sw = R(s.h) + 1;
       cx.fillRect(sx, top, sw, WALK_W);
       cx.fillRect(sx, roadBot, sw, WALK_W);
     }
@@ -1808,7 +1812,7 @@
   // runs into the kerb: n bars and n+1 gaps means the unit is span / (2n + 1),
   // with n chosen to land it nearest 8px for whatever is being crossed.
   function zebra(x, y, across, along, barsRunDown, colour) {
-    const n = Math.max(2, Math.round((across / 8 - 1) / 2));
+    const n = Math.max(2, Math.round((across / M(1.3) - 1) / 2));
     const unit = across / (2 * n + 1);
     cx.fillStyle = colour;
     for (let i = 0; i < n; i++) {
@@ -1874,15 +1878,15 @@
         else        beam(x, Q(b.top), len, WALK_W, S.gallery, "down", .5);
       }
       for (const c of avCars) {                     // start 2px inside the car
-        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, 54, S.head, "down", .5);
-        beam(R(g.lane), c.y - 28, CAR_W, 30, S.tail, "up", .38);
+        beam(R(g.lane), c.y + c.spec.len - 2, CAR_W, MR(7), S.head, "down", .5);
+        beam(R(g.lane), c.y - MR(3.6), CAR_W, MR(3.9), S.tail, "up", .38);
       }
       for (const b of boxes) {
         const st = b.st;
         const laneY = Q(b.roadTop) + LANE_OFF;
         for (const c of st.cars) {
-          beam(c.x + c.spec.len - 2, laneY, 46, CAR_W, S.head, "right", .5);
-          beam(c.x - 24, laneY, 26, CAR_W, S.tail, "left", .32);
+          beam(c.x + c.spec.len - 2, laneY, MR(5.9), CAR_W, S.head, "right", .5);
+          beam(c.x - MR(3.1), laneY, MR(3.4), CAR_W, S.tail, "left", .32);
         }
       }
     }
@@ -1893,7 +1897,7 @@
     // of whatever light it is throwing, and grows as the perspective opens.
     cx.fillStyle = winCol;
     for (const b of winCol ? boxes : []) {
-      const wall = Math.min(Math.abs(b.shift), 9);
+      const wall = Math.min(Math.abs(b.shift), M(1.45));
       if (wall < 1) continue;
       const above = b.shift > 0;                  // which building is showing
       const y = above ? Q(b.top) - wall : Q(b.bot);
@@ -1954,8 +1958,8 @@
     for (const c of avCars) c.y -= d;
     for (const p of avParkA) {
       p.y -= d;
-      if (p.y < -200) p.y += sceneH + 400;
-      if (p.y > sceneH + 200) p.y -= sceneH + 400;
+      if (p.y < -MR(26)) p.y += sceneH + MR(52);
+      if (p.y > sceneH + MR(26)) p.y -= sceneH + MR(52);
     }
   }
 
