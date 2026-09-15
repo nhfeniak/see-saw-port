@@ -1394,7 +1394,7 @@
       glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
-      wallLit: "#E8E7E7", wallShade: "#6E7076",
+      wallLit: "#DED6C4", wallShade: "#6E7076",
       // Daylight is the only light with one direction to it, so it is the only
       // scene that throws shadows. The sun is off the bottom right, so
       // everything throws up and to the left — which is also why the wall you
@@ -1911,7 +1911,11 @@
   // it — and it runs the whole depth of the shadow to get there, since at
   // forty-five degrees a cut is as long as the shadow is deep. Past that
   // corner the shadow runs straight down the side of the avenue.
-  const SHADE_D = PARK_W + WALK_W;
+  //
+  // How deep: far enough to reach across the traffic lane. With the cut as
+  // long as the shadow is deep that is also how far along the street the
+  // corner reaches, and the flat part of it lands on the far kerb of the lane.
+  const SHADE_D = WALK_W + PARK_W + LANE_W;
 
   function bandTo(p, b, bl) {
     const top = b.bot - SHADE_D;
