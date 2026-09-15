@@ -1905,14 +1905,17 @@
   }
 
   // The shadow a block throws up over its lower kerb and the cars standing at
-  // it, as deep as the parking. The forty-five degree edge runs to the inside
-  // corner of the pavement, which is the corner of the building throwing it —
-  // not to the corner of the roof, which is a storey higher and further on.
-  // Past that corner it runs straight down the side of the avenue.
+  // it. Its forty-five degree edge runs to the inside corner of the pavement,
+  // which is the corner of the building throwing it — and it runs the whole
+  // depth of the shadow to get there, not the width of a parking space, since
+  // at forty-five degrees a cut is as long as the shadow is deep. Past that
+  // corner the shadow runs straight down the side of the avenue.
+  const SHADE_D = PARK_W + WALK_W;
+
   function bandTo(p, b, bl) {
-    const top = b.roadBot - PARK_W;
+    const top = b.roadBot - SHADE_D;
     p.moveTo(0, top);
-    p.lineTo(bl - PARK_W, top);
+    p.lineTo(bl - SHADE_D, top);
     p.lineTo(bl, b.roadBot);
     p.lineTo(bl, b.gapBot);
     p.lineTo(0, b.gapBot);
@@ -2007,20 +2010,20 @@
   // Bar and gap the same width with a gap at each end, so the pattern never
   // runs into the kerb: n bars and n+1 gaps means the unit is span / (2n + 1),
   // with n chosen to land it nearest 8px for whatever is being crossed.
-  // One bar width everywhere, so a crossing over the avenue and a crossing
-  // over a cross street are painted the same. Fitting a whole number of bars
-  // and gaps into each span instead gave them different widths, since the two
-  // spans are different: 49px against 34. As many whole bars as the span
-  // holds, centred in it, so the leftover is an equal gap at either end and
-  // the pattern still never runs into a kerb.
+  // One width for a bar and for the blank between two of them, and the same
+  // width on every crossing — the two spans are different, 49px over a cross
+  // street against 34 over the avenue, so something has to give and it is the
+  // clearance at the kerbs. As many bars as the span holds with a blank the
+  // width of a bar between each pair, centred, and whatever is left over is
+  // clear road at either end rather than a wider blank inside the pattern.
   const BAR = M(1.15);
 
   function zebra(x, y, across, along, barsRunDown, colour) {
-    const n = Math.max(2, Math.floor((across / BAR - 1) / 2));
-    const start = (across - (2 * n + 1) * BAR) / 2;
+    const n = Math.max(2, Math.floor((across / BAR + 1) / 2));
+    const start = (across - (2 * n - 1) * BAR) / 2;
     cx.fillStyle = colour;
     for (let i = 0; i < n; i++) {
-      const o = start + BAR * (1 + 2 * i);
+      const o = start + BAR * 2 * i;
       if (barsRunDown) cx.fillRect(R(x + o), y, R(BAR), along);
       else cx.fillRect(R(x), y + o, along, BAR);
     }
