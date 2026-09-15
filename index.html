@@ -243,8 +243,8 @@
   /* the controls stand off the map by exactly the gap between them */
   .map-controls {
     position: absolute;
-    left: calc(var(--map-pad-x) + var(--map-gap));
-    bottom: calc(var(--map-pad-y) + var(--map-gap));
+    left: calc(var(--map-pad) + var(--map-gap));
+    bottom: calc(var(--map-pad) + var(--map-gap));
     z-index: 3;
     display: flex;
     align-items: center;
@@ -282,12 +282,15 @@
      float on cloud with the city switched off underneath, which meant the
      two map pages and the two list pages were laid out nothing alike.
      The map is set into that roof rather than laid over the whole of it, so
-     a margin of the roof shows all the way round the opening. */
-  :root { --map-pad-x: 11px; --map-pad-y: 20px; --map-gap: 12px; }
+     a margin of the roof shows all the way round the opening — the same
+     margin on all four sides, and half again the gap the controls keep from
+     each other and from the map. Two numbers for the whole arrangement, one
+     of them derived from the other. */
+  :root { --map-gap: 8px; --map-pad: calc(var(--map-gap) * 1.5); }
   .mapframe {
     position: relative;
     margin-right: var(--gutter, 38px);
-    padding: var(--map-pad-y) var(--map-pad-x);
+    padding: var(--map-pad);
     background: var(--roof);
   }
 
