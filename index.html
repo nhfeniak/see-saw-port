@@ -104,6 +104,7 @@
   :root[data-subtabs] nav.top { padding-bottom: 4px; }
 
   nav.top a { text-decoration: underline; cursor: pointer; font-weight: bold; }
+  nav.top a.sub { font-weight: normal; }
   nav.top a.active { text-decoration: none; }
 
   .tabs {
@@ -441,11 +442,14 @@
   let mapCenterImgX = null;
   let mapCenterImgY = null;
 
+  // Each map follows the list it belongs to and is labelled only "Map" — four
+  // full names wrapped to two lines on a phone, and the nav is a roof like any
+  // other, so it had to grow a storey to hold them.
   const PAGES = [
     { id: "opening", label: "Openings" },
+    { id: "opening-map", label: "Openings Map", nav: "Map" },
     { id: "onview", label: "On View" },
-    { id: "opening-map", label: "Openings Map" },
-    { id: "onview-map", label: "On View Map" },
+    { id: "onview-map", label: "On View Map", nav: "Map" },
   ];
 
   function fmtUpdated(iso) {
@@ -2082,7 +2086,8 @@
   function renderTopNav() {
     const nav = document.getElementById("topnav");
     nav.innerHTML = PAGES.map(p =>
-      `<a data-page="${p.id}" class="${currentPage === p.id ? "active" : ""}">${p.label}</a>`
+      `<a data-page="${p.id}" class="${currentPage === p.id ? "active" : ""}${p.nav ? " sub" : ""}"` +
+      ` title="${escapeHTML(p.label)}">${p.nav || p.label}</a>`
     ).join("");
     nav.querySelectorAll("a").forEach(a => {
       a.addEventListener("click", (e) => {
