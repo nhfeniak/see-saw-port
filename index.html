@@ -324,6 +324,15 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* The frame floats above the map, and the sun is off the bottom right — so
+     the frame's own bottom and right edges throw up and to the left onto the
+     map inside them. It lifts a little as you zoom in, because zooming in is
+     going closer, but not by much. */
+  :root[data-scene="day"] .mapwrap {
+    box-shadow: inset calc(var(--map-lift, 7px) * -1) calc(var(--map-lift, 7px) * -1)
+                var(--map-lift, 7px) rgba(24, 22, 28, .30);
+  }
+
   .mapinner { position: relative; }
   .mapinner svg { display: block; max-width: none; }
 
@@ -984,6 +993,10 @@
     }
     mapScale = Math.max(fitScale, Math.min(maxScale, mapScale));
 
+    // how high the frame reads above the map: with the fourth root of the
+    // zoom, so forty times closer is only two and a half times the lift
+    rootStyle.setProperty("--map-lift", (5 * Math.pow(mapScale, .25)).toFixed(1) + "px");
+
     const w = ARTBOARD_W * mapScale;
     const h = ARTBOARD_H * mapScale;
     inner.style.width = w + "px";
@@ -1354,6 +1367,10 @@
       glow: [255, 214, 150],
       blank: "#000000", asphalt: "#191A20", avenue: "#131419",
       walks: ["#4A3B2B", "#3E3830", "#54452F"],
+      // The two faces the gap opens on: the one above catches the light and
+      // goes warm, the one below is the same wall in shadow — a cool grey,
+      // and about as light as the pavement rather than the dark of the ground.
+      wallLit: "#6A5F4A", wallShade: "#45484F",
       glass: "#0A0908", paint: "#6B6863",
       cars: ["#141312", "#141312", "#2A2724", "#3A3632", "#4A2F2A", "#6B6863"],
       coats: ["#141210", "#241C16"],
@@ -1377,6 +1394,12 @@
       glow: null,
       blank: "#FFFFFF", asphalt: "#3B3A44", avenue: "#6E6E74",
       walks: ["#A89C96", "#A3A0A0", "#B0A49D"],
+      wallLit: "#BCAF99", wallShade: "#6E7076",
+      // Daylight is the only light with one direction to it, so it is the only
+      // scene that throws shadows. The sun is off the bottom right, so
+      // everything throws up and to the left — which is also why the wall you
+      // see above a street is the lit one and the wall below it is not.
+      shade: "rgba(24, 22, 28, .26)",
       glass: "#16151A", paint: "#DDDCDC",
       cars: ["#232323", "#232323", "#DDDCDC", "#B6B2B0", "#8E3B34", "#E8B830"],
       coats: ["#1C1714", "#2A2018"],
@@ -1726,7 +1749,8 @@
       const shift = -(1 - PARALLAX) * (r.top - sceneH / 2);
       const top = r.top + shift + GAP_EXTRA / 2;   // centred in the deeper gap
       const key = el.dataset.key;   // its own, not its words: the gap is empty
-      out.push({ el, key, shift, top, st: crossFor(key, S, W),
+      out.push({ el, key, shift, top, gapTop: r.top, gapBot: r.top + CROSS_H + GAP_EXTRA,
+                 st: crossFor(key, S, W),
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
     }
     return out;
@@ -1846,6 +1870,30 @@
 
   // ---- drawing -----------------------------------------------------
   const disc = (x, y, r, c) => { cx.fillStyle = c; cx.beginPath(); cx.arc(x, y, r, 0, 6.2832); cx.fill(); };
+
+  // A shadow has to go down in one piece. Built out of overlapping rectangles
+  // it is laid over itself four times where they meet, and four fills at a
+  // quarter opacity come out at three quarters — the corners of every car
+  // came out nearly black with bands across them.
+  //
+  // A box with its corners cut at forty-five degrees, and a bar with a round
+  // end: one path, one fill, one thickness of shadow.
+  function cut(x, y, w, h, c) {
+    cx.beginPath();
+    cx.moveTo(x + c, y); cx.lineTo(x + w - c, y);
+    cx.lineTo(x + w, y + c); cx.lineTo(x + w, y + h - c);
+    cx.lineTo(x + w - c, y + h); cx.lineTo(x + c, y + h);
+    cx.lineTo(x, y + h - c); cx.lineTo(x, y + c);
+    cx.closePath(); cx.fill();
+  }
+
+  function bar(mid, foot, head, r) {
+    cx.beginPath();
+    cx.moveTo(mid - r, foot); cx.lineTo(mid - r, head);
+    cx.arc(mid, head, r, Math.PI, 0);
+    cx.lineTo(mid + r, foot);
+    cx.closePath(); cx.fill();
+  }
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
   // Forty of these are thrown every frame and only a handful are ever
@@ -1914,14 +1962,22 @@
   // Bar and gap the same width with a gap at each end, so the pattern never
   // runs into the kerb: n bars and n+1 gaps means the unit is span / (2n + 1),
   // with n chosen to land it nearest 8px for whatever is being crossed.
+  // One bar width everywhere, so a crossing over the avenue and a crossing
+  // over a cross street are painted the same. Fitting a whole number of bars
+  // and gaps into each span instead gave them different widths, since the two
+  // spans are different: 49px against 34. As many whole bars as the span
+  // holds, centred in it, so the leftover is an equal gap at either end and
+  // the pattern still never runs into a kerb.
+  const BAR = M(1.15);
+
   function zebra(x, y, across, along, barsRunDown, colour) {
-    const n = Math.max(2, Math.round((across / M(1.3) - 1) / 2));
-    const unit = across / (2 * n + 1);
+    const n = Math.max(2, Math.floor((across / BAR - 1) / 2));
+    const start = (across - (2 * n + 1) * BAR) / 2;
     cx.fillStyle = colour;
     for (let i = 0; i < n; i++) {
-      const o = unit * (1 + 2 * i);
-      if (barsRunDown) cx.fillRect(R(x + o), y, R(unit), along);
-      else cx.fillRect(R(x), y + o, along, unit);
+      const o = start + BAR * (1 + 2 * i);
+      if (barsRunDown) cx.fillRect(R(x + o), y, R(BAR), along);
+      else cx.fillRect(R(x), y + o, along, BAR);
     }
   }
 
@@ -1961,6 +2017,13 @@
     for (let t = -TILE; t < H + TILE; t += TILE) {
       const base = t - off;
       for (const s of slabs) { cx.fillStyle = s.c; cx.fillRect(R(g.walkX), base + s.y, WALK_W, s.h + 1); }
+    }
+    // the walls the gap opens on, before the street is laid between them
+    for (const b of boxes) {
+      cx.fillStyle = S.wallLit;
+      cx.fillRect(0, b.gapTop, R(g.fieldW), Math.max(0, b.top - b.gapTop));
+      cx.fillStyle = S.wallShade;
+      cx.fillRect(0, b.bot, R(g.fieldW), Math.max(0, b.gapBot - b.bot));
     }
     for (const b of boxes) drawCrossSurface(g, b, S);
     for (const b of boxes) {                       // pavement stops at a junction
@@ -2015,6 +2078,32 @@
         cx.fillRect(L.x, L.side ? b.bot : b.top - WIN_D, L.len, WIN_D);
     }
 
+    // 3c — what the sun leaves behind, on the ground and under the thing that
+    // casts it. It is off the bottom right, so everything throws up and to the
+    // left: a person as a long bar with the round of their head at the top of
+    // it, a vehicle as its own box with the corners cut.
+    if (S.shade) {
+      cx.fillStyle = S.shade;
+      const dx = -M(1.5), dy = -M(1.5), pl = M(2.4);
+      for (const p of avParkA) cut(R(g.parkA) + dx, p.y + dy, CAR_W, p.spec.len, 3);
+      for (const c of avCars) cut(R(g.lane) + dx, c.y + dy, CAR_W, c.spec.len, 3);
+      for (const b of boxes) {
+        const st = b.st, laneY = b.roadTop + LANE_OFF, stop = g.walkX - 6;
+        for (const p of st.parkT) if (p.x + p.spec.len < stop) cut(p.x + dx, b.roadTop + dy, p.spec.len, CAR_W, 3);
+        for (const p of st.parkB) if (p.x + p.spec.len < stop) cut(p.x + dx, b.roadBot - PARK_W + dy, p.spec.len, CAR_W, 3);
+        for (const c of st.cars) cut(c.x + dx, laneY + dy, c.spec.len, CAR_W, 3);
+      }
+      // A shadow thrown upwards off the top pavement would climb the lit wall
+      // above it, and a wall in full sun does not take one. It stops at the
+      // kerb it belongs to.
+      for (const p of peds) {
+        if (p.y < -20) continue;
+        let head = p.y - pl;
+        for (const b of boxes) if (p.y >= b.top && p.y <= b.bot && head < b.top) head = b.top;
+        if (p.y - head > PED_R) bar(p.x + dx, p.y, head + PED_R, PED_R);
+      }
+    }
+
     // 4 — parked. Nobody parks in a junction or on a crossing.
     const blockedV = (y, len) => boxes.some(b => y + len > b.top && y < b.bot);
     for (const p of avParkA) if (!blockedV(p.y, p.spec.len)) veh(R(g.parkA), p.y + p.spec.len, p.spec, p.color, S.glass, true);
@@ -2042,6 +2131,20 @@
       w.y = b ? (w.side ? b.roadBot : b.top) + w.off : -999;
     }
     for (const p of peds) if (p.y > -20) disc(p.x, p.y, p.r, p.color);
+
+    // 6b — and the shadow the block itself throws, up from the bottom right
+    // across the lower kerb and the cars standing at it. Over them rather than
+    // under: they are in it, not casting it. The corner where it meets the
+    // avenue is cut at forty-five degrees off the inside of the pavement.
+    if (S.shade) {
+      cx.fillStyle = S.shade;
+      const bl = R(g.walkX), c = PARK_W;
+      for (const b of boxes) {
+        const yTop = b.roadBot - PARK_W, h = b.gapBot - yTop;
+        cx.fillRect(0, yTop, Math.max(0, bl - c), h);
+        for (let i = 0; i < c; i++) cx.fillRect(bl - c + i, yTop + i, 1, h - i);
+      }
+    }
 
     // 7 — the crop. Past the kerb there is nothing, so a car or a headlight
     // that overshoots is cut off at the line instead of floating in the blank.
@@ -2082,9 +2185,32 @@
     // and further down when the scroll is quick, and they never climb back;
     // a band keeps them where the next second of scrolling will need them, and
     // the queue spaces out whatever lands together.
+    // A car returning below the street would become the leader, and the queue
+    // would clamp whoever was already there back up the road to make room —
+    // which reads as a car being shoved backwards. So it gives way to anything
+    // already at that end. Only to what is already at that end: measured
+    // against every car on the road, one that had drifted far down the page
+    // would send every return after it further down still, and none of them
+    // ever came back.
+    const near = MR(30);
     for (const c of avCars) {
-      if (c.y > far) c.y = -LIVE - c.spec.len - MR(rnd(0, 34));
-      else if (c.y + c.spec.len < -LIVE) c.y = far + MR(rnd(0, 34));
+      if (c.y > far) {
+        let y = -LIVE - c.spec.len - MR(rnd(0, 34));
+        for (const o of avCars) {
+          if (o === c || o.y + o.spec.len > -LIVE + near) continue;
+          const room = o.y - gapFor(o) - c.spec.len;
+          if (room < y) y = room;
+        }
+        c.y = y;
+      } else if (c.y + c.spec.len < -LIVE) {
+        let y = far + MR(rnd(0, 34));
+        for (const o of avCars) {
+          if (o === c || o.y < far - near) continue;
+          const room = o.y + o.spec.len + gapFor(c);
+          if (room > y) y = room;
+        }
+        c.y = y;
+      }
     }
     for (const w of peds) {
       if (w.axis !== "v") continue;
