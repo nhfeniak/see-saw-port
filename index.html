@@ -1360,11 +1360,11 @@
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
-      // Moving traffic is what a block holds before the cars are nose to
-      // tail, and the headway is most of that room — so the way to more of it
-      // is to follow closer, which is what city traffic at this speed does.
-      density: { peds: 6.0, crossPeds: 3.0, cars: 1.6, park: .70,
-                 crossCars: 1.7, crossPark: .50 },
+      // Half of what a block holds, so the gaps are the street's own and not
+      // the headway's: at capacity every car is at its following distance and
+      // the traffic comes out evenly spaced, which is a queue.
+      density: { peds: 6.0, crossPeds: 3.0, cars: 0.8, park: .70,
+                 crossCars: 0.85, crossPark: .50 },
       night: true,
     },
     day: {
@@ -1383,8 +1383,8 @@
       head: null, tail: null, gallery: null,
       // daylight on a weekday afternoon, not an opening: few people about,
       // but the kerb is full — everybody who is here has parked and gone in
-      density: { peds: 0.7, crossPeds: 0.7, cars: 1.0, park: .50,
-                 crossCars: 1.4, crossPark: .40 },
+      density: { peds: 0.7, crossPeds: 0.7, cars: 0.5, park: .50,
+                 crossCars: 0.7, crossPark: .40 },
       night: false,
     },
   };
@@ -1554,7 +1554,7 @@
       // eighty pixels before they are nose to tail.
       const lead = MR(8), n = R(W / 100 * d.crossCars), slot = (W + lead) / n;
       for (let i = 0; i < n; i++)
-        c.cars.push({ x: -lead + (i + rnd(.12, .88)) * slot,
+        c.cars.push({ x: -lead + (i + rnd(.04, .96)) * slot,
                       spec: spec(), speed: MR(rnd(6.7, 9.4)), color: pick(S.cars) });
       for (const row of ["parkT", "parkB"]) {
         let x = MR(rnd(-10.3, 2.6));
@@ -1732,13 +1732,13 @@
     return out;
   }
 
-  // Bumper to bumper only at a standstill. Moving traffic keeps under half a
-  // second of headway — city following distance, not highway — so the gap
-  // opens as a car speeds up and closes only as it slows to a stop. It is
-  // also most of the room a block has: at three quarters of a second a block
-  // held eight cars and no density could get past that.
-  const GAP_STOP = MR(1.0);
-  const HEADWAY = 0.45;
+  // Bumper to bumper only at a standstill, and two thirds of a second of
+  // headway when moving, so the gap opens as a car speeds up and closes only
+  // as it slows to a stop. Cars run at anything from 6.7 to 9.4 metres a
+  // second, so their following distances differ by nearly half — which is
+  // most of where the unevenness in a line of traffic comes from.
+  const GAP_STOP = MR(1.4);
+  const HEADWAY = 0.65;
   const gapFor = (c) => GAP_STOP + (c.speed || 0) * HEADWAY;
 
   // A queue on a one-way street: nobody may pass through the car in front, and
@@ -2083,8 +2083,8 @@
     // a band keeps them where the next second of scrolling will need them, and
     // the queue spaces out whatever lands together.
     for (const c of avCars) {
-      if (c.y > far) c.y = -LIVE - c.spec.len - MR(rnd(0, 14));
-      else if (c.y + c.spec.len < -LIVE) c.y = far + MR(rnd(0, 14));
+      if (c.y > far) c.y = -LIVE - c.spec.len - MR(rnd(0, 34));
+      else if (c.y + c.spec.len < -LIVE) c.y = far + MR(rnd(0, 34));
     }
     for (const w of peds) {
       if (w.axis !== "v") continue;
