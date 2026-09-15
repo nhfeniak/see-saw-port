@@ -2215,7 +2215,7 @@
       for (const b of boxes) {
         const st = b.st, laneY = b.roadTop + LANE_OFF, stop = g.walkX - 6;
         for (const p of st.parkT) if (p.x + p.spec.len < stop) hullTo(P, p.x, b.roadTop, p.spec.len, CAR_W, off(p.spec));
-        for (const p of st.parkB) if (p.x + p.spec.len < stop) hullTo(P, p.x, b.roadBot - PARK_W, p.spec.len, CAR_W, off(p.spec));
+        for (const p of st.parkB) if (p.x + p.spec.len < stop) hullTo(P, p.x, b.roadBot - CAR_W, p.spec.len, CAR_W, off(p.spec));
         for (const c of st.cars) hullTo(P, c.x, laneY, c.spec.len, CAR_W, off(c.spec));
       }
       for (const p of peds) if (p.y > -20) barTo(P, p.x, p.y, -pl, -pl, PED_R);
@@ -2230,8 +2230,12 @@
     for (const b of boxes) {
       const st = b.st;
       const stop = g.walkX - 6;
+      // Against the kerb, which is the car's width back from it and not the
+      // bay's: a parking bay is 15px and a car is 12, so measuring the lower
+      // row off the bay left it parked 3px out in the road. The upper row is
+      // flush because its kerb is where the bay starts.
       for (const p of st.parkT) if (p.x + p.spec.len < stop) veh(b.roadTop, p.x + p.spec.len, p.spec, p.color, S.glass, false);
-      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(b.roadBot - PARK_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
+      for (const p of st.parkB) if (p.x + p.spec.len < stop) veh(b.roadBot - CAR_W, p.x + p.spec.len, p.spec, p.color, S.glass, false);
     }
 
     // 5 — everything moving, both directions on the same layer
