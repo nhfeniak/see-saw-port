@@ -1360,8 +1360,11 @@
       head: [255, 244, 214], tail: [196, 42, 30], gallery: [226, 236, 255],
       // people per 100px of pavement, so a long block carries as many as a
       // tall screen does — the avenue and the side streets fill the same way
-      density: { peds: 6.0, crossPeds: 3.0, cars: 6, park: .70,
-                 crossCars: 1.3, crossPark: .50 },
+      // Moving traffic is what a block holds before the cars are nose to
+      // tail, and the headway is most of that room — so the way to more of it
+      // is to follow closer, which is what city traffic at this speed does.
+      density: { peds: 6.0, crossPeds: 3.0, cars: 1.6, park: .70,
+                 crossCars: 1.7, crossPark: .50 },
       night: true,
     },
     day: {
@@ -1380,8 +1383,8 @@
       head: null, tail: null, gallery: null,
       // daylight on a weekday afternoon, not an opening: few people about,
       // but the kerb is full — everybody who is here has parked and gone in
-      density: { peds: 0.7, crossPeds: 0.7, cars: 2, park: .50,
-                 crossCars: 1.0, crossPark: .40 },
+      density: { peds: 0.7, crossPeds: 0.7, cars: 1.0, park: .50,
+                 crossCars: 1.4, crossPark: .40 },
       night: false,
     },
   };
@@ -1519,7 +1522,9 @@
     }
 
     avCars = [];
-    for (let i = 0; i < S.density.cars; i++) avCars.push(makeCar(S, rnd(-MR(26), H + MR(26))));
+    // by the length of the avenue on screen, like everything else on it
+    for (let i = 0, n = R((H + 2 * LIVE) / 100 * S.density.cars); i < n; i++)
+      avCars.push(makeCar(S, rnd(-LIVE, H + LIVE)));
     avParkA = parkRow(S, H);
 
     crossStreets.clear();
@@ -1672,8 +1677,6 @@
       if (w.axis === "v") {
         w.x = g.walkX + w.off;
         w.y += w.dir * w.speed * dt;
-        if (w.y < -LIVE) w.y = H + LIVE;
-        if (w.y > H + LIVE) w.y = -LIVE;
         for (const b of boxes) {                                  // a corner
           const near = w.y > b.top + PED_R && w.y < b.top + WALK_W - PED_R;
           const far = w.y > b.roadBot + PED_R && w.y < b.roadBot + WALK_W - PED_R;
@@ -1729,11 +1732,13 @@
     return out;
   }
 
-  // Bumper to bumper only at a standstill. Moving traffic keeps roughly
-  // three-quarters of a second of headway, so the gap opens as a car speeds
-  // up and closes only as it slows to a stop.
-  const GAP_STOP = MR(1.4);
-  const HEADWAY = 0.75;
+  // Bumper to bumper only at a standstill. Moving traffic keeps under half a
+  // second of headway — city following distance, not highway — so the gap
+  // opens as a car speeds up and closes only as it slows to a stop. It is
+  // also most of the room a block has: at three quarters of a second a block
+  // held eight cars and no density could get past that.
+  const GAP_STOP = MR(1.0);
+  const HEADWAY = 0.45;
   const gapFor = (c) => GAP_STOP + (c.speed || 0) * HEADWAY;
 
   // A queue on a one-way street: nobody may pass through the car in front, and
@@ -1821,7 +1826,6 @@
             }
             return best;
           });
-    for (const c of avCars) if (c.y > H + MR(28)) c.y = -MR(28) - Math.random() * MR(26);
   }
 
 
@@ -2057,13 +2061,34 @@
   function carry(par) {
     const d = par - lastPar;
     lastPar = par;
-    if (!d || sceneMode !== "street") return;
-    for (const w of peds) w.y -= d;
-    for (const c of avCars) c.y -= d;
+    if (sceneMode !== "street") return;
+    if (d) {
+      for (const w of peds) w.y -= d;
+      for (const c of avCars) c.y -= d;
+      for (const p of avParkA) p.y -= d;
+    }
+    // Everything on the avenue is recycled here rather than in the step,
+    // because this runs on both of the paths that draw and the step runs on
+    // only one of them. A flick is precisely when frames are throttled and the
+    // fallback is what runs — so the scroll was carrying the traffic off the
+    // top of the street with nothing to bring it back, and the avenue emptied
+    // behind you exactly when you were moving fastest.
+    const far = sceneH + LIVE, wrap = sceneH + 2 * LIVE;
     for (const p of avParkA) {
-      p.y -= d;
-      if (p.y < -MR(26)) p.y += sceneH + MR(52);
-      if (p.y > sceneH + MR(26)) p.y -= sceneH + MR(52);
+      if (p.y < -LIVE) p.y += wrap; else if (p.y > far) p.y -= wrap;
+    }
+    // A car comes back on just outside the live range, anywhere in a short
+    // band of it. Chaining each one behind the last instead sends them further
+    // and further down when the scroll is quick, and they never climb back;
+    // a band keeps them where the next second of scrolling will need them, and
+    // the queue spaces out whatever lands together.
+    for (const c of avCars) {
+      if (c.y > far) c.y = -LIVE - c.spec.len - MR(rnd(0, 14));
+      else if (c.y + c.spec.len < -LIVE) c.y = far + MR(rnd(0, 14));
+    }
+    for (const w of peds) {
+      if (w.axis !== "v") continue;
+      if (w.y < -LIVE) w.y = far; else if (w.y > far) w.y = -LIVE;
     }
   }
 
