@@ -243,8 +243,8 @@
   /* the controls stand off the map by exactly the gap between them */
   .map-controls {
     position: absolute;
-    left: calc(var(--map-pad-x) + var(--map-gap));
-    bottom: calc(var(--map-pad-y) + var(--map-gap));
+    left: var(--map-gap);
+    bottom: var(--map-gap);
     z-index: 3;
     display: flex;
     align-items: center;
@@ -280,12 +280,13 @@
   /* A map is a building like any other on the block: one roof, the street
      down its right side and a cross street at each end of it. It used to
      float on cloud with the city switched off underneath, which meant the
-     two map pages and the two list pages were laid out nothing alike. */
-  :root { --map-pad-x: 11px; --map-pad-y: 20px; --map-gap: 8px; }
+     two map pages and the two list pages were laid out nothing alike.
+     The map is the whole of its roof — no border, no inset — so the roof
+     colour underneath is only ever a backstop against a sliver showing. */
+  :root { --map-gap: 8px; }
   .mapframe {
     position: relative;
     margin-right: var(--gutter, 38px);
-    padding: var(--map-pad-y) var(--map-pad-x);
     background: var(--roof);
   }
 
@@ -674,14 +675,21 @@
   const roofFor = (show) => roofOf(show.id);
   const roofStyle = (sk) => `--roof:${sk.roof};--roof-ink:${sk.ink}`;
 
-  // The roof a map sits on: any of the block's stock except the one the map
-  // itself is painted on, or the opening in the roof would not read as one.
+  // The roof a map sits on, and the one its controls are cut from: any of the
+  // block's stock except the one the map itself is painted on, because a
+  // control that colour would disappear into the map it stands on. The ink is
+  // whichever of the two reads on it, the way every other roof picks its own.
+  // Deterministic, like every roof here — random to look at, the same on every
+  // render, because a control that changed colour when the list refreshed
+  // would read as a different control.
   function mapRoof(kind) {
     const back = SCENE[kind].map.back.toUpperCase();
     const table = (ROOFS[kind] || ROOFS.night).filter(([hex]) => hex.toUpperCase() !== back);
     const roof = table[hashId("map-" + kind) % table.length][0];
     return { roof, ink: contrast(roof, INK_DARK) >= contrast(roof, INK_LIGHT) ? INK_DARK : INK_LIGHT };
   }
+  // the controls sit inside the frame, so they inherit these from it
+  const mapRoofStyle = (sk) => `${roofStyle(sk)};--map-btn:${sk.roof};--map-btnink:${sk.ink}`;
 
   function entryHTML(show) {
     const titleText = show.title || show.headline || show.name;
@@ -887,7 +895,7 @@
     return `
       ${subtabsHTML}
       <div class="date-head" data-key="map-above"></div>
-      <div class="mapframe" style="${roofStyle(mapRoof(kind === "opening" ? "night" : "day"))}">
+      <div class="mapframe" style="${mapRoofStyle(mapRoof(kind === "opening" ? "night" : "day"))}">
       <div class="mapwrap" id="mapwrap">
         <div class="mapinner" id="mapinner">
           ${points.map(p => `
@@ -2415,8 +2423,6 @@
     const S2 = SCENE[kind], toward = (a, b, t) => toHex(a.map((c, i) => c + (b[i] - c) * t));
     for (const [k, v] of Object.entries(S2.map)) rootStyle.setProperty("--map-" + k, v);
     const back = toRGB(S2.map.back), line = toRGB(S2.map.line);
-    rootStyle.setProperty("--map-btn", S2.glow ? toward(back, S2.glow, .5) : "#FFFFFF");
-    rootStyle.setProperty("--map-btnink", INK_DARK);
     // Every step of street brightness is the same light — the base tone
     // carried that much further toward the sodium the map itself throws out.
     // Daylight has no such thing, so every step is the street's own colour and
