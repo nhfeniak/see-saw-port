@@ -473,6 +473,7 @@
   // nothing on the other. In memory only, like the pinned bookmark rows:
   // reloading is how you put everything back.
   let mapPicked = { opening: null, onview: null };
+  let mapPile = { opening: [], onview: [] };
   let mapPoints = [];    // what is plotted in the current map view
   let mapKind = null;    // "opening" | "onview"
   let mapListSig = "";   // last rendered row order, to skip redundant repaints
@@ -945,6 +946,7 @@
       </div>
       <div class="entries mappick" id="mappick"></div>
       <div class="date-head" data-key="map-below"></div>
+      <div id="mappile"></div>
       <div class="entries maplist" id="maplist"></div>
     `;
   }
@@ -983,14 +985,62 @@
     applyBookmarkStyles();
   }
 
+  // Ids to shows, in the order given, dropping any this map is not showing —
+  // the pile outlives a change of day on the openings map, and what is not on
+  // the new day simply is not in it.
+  function showsFor(ids) {
+    const out = [];
+    for (const id of ids) {
+      const hit = mapPoints.find(p => String(p.show.id) === id);
+      if (hit) out.push(hit.show);
+    }
+    return out;
+  }
+
+  // Everything this map has pulled up before, most recently clicked first, in
+  // its own block above the list with a street between the two. It is not the
+  // list: the list is the whole of the map's north-south order, and this is a
+  // record of what you have been looking at, which is a different question and
+  // so sits on its own block. Like the pick, it ignores what the map is
+  // currently showing — panning away from something you tapped must not lose
+  // it — and like the pick it is gone on a reload.
+  function renderMapPile() {
+    const host = document.getElementById("mappile");
+    if (!host) return;
+    const shows = showsFor(mapPile[mapKind]);
+    host.innerHTML = shows.length
+      ? `<div class="entries">${shows.map(entryHTML).join("")}</div>` +
+        `<div class="date-head" data-key="map-pile"></div>`
+      : "";
+    applyBookmarkStyles();
+  }
+
+  // The heads are what the scene lays its cross streets in, and the pile adds
+  // and removes one, so they are re-collected whenever the blocks change
+  // rather than only when the page is rendered.
+  function syncHeads() {
+    headEls = document.getElementById("content").querySelectorAll(".date-head");
+    const S = SCENE[sceneKind], W = geom().fieldW;
+    for (const el of headEls) crossFor(el.dataset.key, S, W);
+    measureDoc();
+  }
+
   function pickOnMap(id) {
-    const now = String(id);
-    if (mapPicked[mapKind] === now) return;
-    mapPicked[mapKind] = now;
+    const now = String(id), kind = mapKind;
+    if (mapPicked[kind] === now) return;
+    const going = mapPicked[kind];
+    // Whatever was up there is now the most recently clicked thing that is not
+    // up there any more, so it goes on top of the pile. The incoming one comes
+    // out of the pile if it was in it, rather than being in two places.
+    const pile = mapPile[kind].filter(x => x !== now && x !== going);
+    if (going) pile.unshift(going);
+    mapPile[kind] = pile;
+    mapPicked[kind] = now;
     renderMapPick();
-    mapListSig = "";            // the row it used to be has to leave the list
+    renderMapPile();
+    mapListSig = "";            // the rows that moved have to leave the list
     updateMapList();
-    measureDoc();               // the page just got taller or shorter
+    syncHeads();                // a street may have just appeared under them
   }
 
   // Everything on screen, listed underneath — nothing else, bookmarked or not.
@@ -1009,8 +1059,10 @@
     const pinned = [];
     const onScreen = [];
     const picked = mapPicked[mapKind];
+    const piled = new Set(mapPile[mapKind]);
     for (const p of mapPoints) {
-      if (picked && String(p.show.id) === picked) continue;   // it is up top now
+      const id = String(p.show.id);
+      if (id === picked || piled.has(id)) continue;   // it is in a block above
       const x = p.x * mapScale;
       const y = p.y * mapScale;
       if (x < left || x > right || y < top || y > bottom) continue;
@@ -2616,6 +2668,7 @@
       insertBasemap();
       applyMapScale();
       renderMapPick();
+      renderMapPile();
       const wrap = document.getElementById("mapwrap");
       document.getElementById("zoomIn")?.addEventListener("click", () => zoomBy(1.6));
       document.getElementById("zoomOut")?.addEventListener("click", () => zoomBy(1 / 1.6));
@@ -2626,16 +2679,11 @@
 
     // the nav is the bottom edge of the header box unless subtabs follow it
     document.documentElement.toggleAttribute("data-subtabs", !!content.querySelector(".tabs"));
-    headEls = content.querySelectorAll(".date-head");
-    measureDoc();
     // Every block's traffic, parking, frontage and crowd is built now rather
     // than the first time that heading scrolls into view. There are never more
     // than a dozen and it is a millisecond here; done during a flick it is a
     // dropped frame, at whatever speed happens to reach the next heading.
-    {
-      const S = SCENE[sceneKind], W = geom().fieldW;
-      for (const el of headEls) crossFor(el.dataset.key, S, W);
-    }
+    syncHeads();
     applyBookmarkStyles();
     saveView();
   }
