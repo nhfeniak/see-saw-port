@@ -467,13 +467,18 @@
   // never leaves until the page is reloaded, so un-bookmarking by mistake does
   // not reorder the row out from under the tap.
   let stickyTop = new Set();
-  // Which show each map has pulled up out of its list, and — checkpoint 3 —
-  // the ones it has pulled up before, most recent first. Both are per map
-  // kind: the two maps hold different sets of shows, so a pick on one means
-  // nothing on the other. In memory only, like the pinned bookmark rows:
-  // reloading is how you put everything back.
+  // Which show each map has pulled up out of its list, and the ones it has
+  // pulled up before, most recent first. Both are per map kind: the two maps
+  // hold different sets of shows, so a pick on one means nothing on the other.
+  //
+  // The pick is this visit only — a reload is one of the two ways out of it.
+  // The pile is not: it keeps for good, beside the bookmarks, because what you
+  // have been looking at is worth as much tomorrow as it is now.
   let mapPicked = { opening: null, onview: null };
   let mapPile = { opening: [], onview: [] };
+  const MAP_KINDS = ["opening", "onview"];
+  const PILE_KEY = "seesawport.mappile";
+  const PILE_MAX = 5;
   let mapPoints = [];    // what is plotted in the current map view
   let mapKind = null;    // "opening" | "onview"
   let mapListSig = "";   // last rendered row order, to skip redundant repaints
@@ -519,6 +524,41 @@
   }
 
   const BOOKMARK_KEY = "seesawport.bookmarks";
+
+  // Saved with the pick already on top of it, because a reload is one of the
+  // two ways out of a pick and both of them put it back in the list — which
+  // here means the top of this block. So what comes back after a reload is
+  // what you would have seen by tapping one more dot, minus the new one.
+  function savePile() {
+    try {
+      const out = {};
+      for (const k of MAP_KINDS) {
+        const head = mapPicked[k];
+        out[k] = (head ? [head, ...mapPile[k].filter(x => x !== head)] : mapPile[k])
+                   .slice(0, PILE_MAX);
+      }
+      localStorage.setItem(PILE_KEY, JSON.stringify(out));
+    } catch (e) {
+      // storage unavailable — the pile is just this visit's, then
+    }
+  }
+
+  // An id that no longer answers to anything on the map is skipped at render
+  // rather than dropped here: today's openings map is one day of many, and a
+  // gallery missing from it is not a gallery you never tapped.
+  function loadPile() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(PILE_KEY) || "null");
+    } catch (e) {
+      return;
+    }
+    if (!saved) return;
+    for (const k of MAP_KINDS) {
+      if (!Array.isArray(saved[k])) continue;
+      mapPile[k] = saved[k].filter(x => typeof x === "string").slice(0, PILE_MAX);
+    }
+  }
 
   // Which tab and sub-tab you were on, so a reload puts you back. Deliberately
   // sessionStorage, not local: reloading mid-visit should not lose your place,
@@ -1001,9 +1041,9 @@
   // its own block above the list with a street between the two. It is not the
   // list: the list is the whole of the map's north-south order, and this is a
   // record of what you have been looking at, which is a different question and
-  // so sits on its own block. Like the pick, it ignores what the map is
-  // currently showing — panning away from something you tapped must not lose
-  // it — and like the pick it is gone on a reload.
+  // so sits on its own block. It ignores what the map is currently showing —
+  // panning away from something you tapped must not lose it — and unlike the
+  // pick it survives a reload, five deep.
   function renderMapPile() {
     const host = document.getElementById("mappile");
     if (!host) return;
@@ -1034,8 +1074,11 @@
     // out of the pile if it was in it, rather than being in two places.
     const pile = mapPile[kind].filter(x => x !== now && x !== going);
     if (going) pile.unshift(going);
-    mapPile[kind] = pile;
+    // Five deep. The sixth thing you looked at is not what the block is for,
+    // and it falls off the bottom of it back into the order the list is in.
+    mapPile[kind] = pile.slice(0, PILE_MAX);
     mapPicked[kind] = now;
+    savePile();
     renderMapPick();
     renderMapPile();
     mapListSig = "";            // the rows that moved have to leave the list
@@ -2695,6 +2738,7 @@
     sceneStart();
     renderTopNav();
     loadBookmarks();
+    loadPile();
 
     // delegated so it survives every re-render of the list
     document.getElementById("content").addEventListener("click", (e) => {
