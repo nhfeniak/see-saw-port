@@ -345,6 +345,9 @@
      kept their default black and read as holes once the land went light. */
   #mapinner path:not([class]) { fill: var(--map-water); }
 
+  /* A dot is a control, not a link: it pulls its listing up out of the list
+     rather than leaving for the show's own page. The page is still one tap
+     away — the title of the listing it pulls up is the link to it. */
   .dot {
     position: absolute;
     width: 30px;
@@ -353,6 +356,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
   }
 
   /* A dot is a person on the pavement seen from much higher up, so it is
@@ -445,6 +452,12 @@
   // never leaves until the page is reloaded, so un-bookmarking by mistake does
   // not reorder the row out from under the tap.
   let stickyTop = new Set();
+  // Which show each map has pulled up out of its list, and — checkpoint 3 —
+  // the ones it has pulled up before, most recent first. Both are per map
+  // kind: the two maps hold different sets of shows, so a pick on one means
+  // nothing on the other. In memory only, like the pinned bookmark rows:
+  // reloading is how you put everything back.
+  let mapPicked = { opening: null, onview: null };
   let mapPoints = [];    // what is plotted in the current map view
   let mapKind = null;    // "opening" | "onview"
   let mapListSig = "";   // last rendered row order, to skip redundant repaints
@@ -903,7 +916,7 @@
       <div class="mapwrap" id="mapwrap">
         <div class="mapinner" id="mapinner">
           ${points.map(p => `
-            <a class="dot" data-id="${p.show.id}" data-x="${p.x}" data-y="${p.y}" href="${escapeHTML(p.show.share_url || "")}" target="_blank" rel="noopener" title="${escapeHTML(p.show.title || p.show.headline || p.show.name)}"></a>
+            <button type="button" class="dot" data-id="${p.show.id}" data-x="${p.x}" data-y="${p.y}" title="${escapeHTML(p.show.title || p.show.headline || p.show.name)}" aria-label="${escapeHTML(p.show.name)}"></button>
             <div class="dot-label" data-x="${p.x}" data-y="${p.y}">${escapeHTML(p.show.name)}</div>
           `).join("")}
           ${userLoc ? `<div class="me" data-x="${lonToSvgX(userLoc.lon)}" data-y="${latToSvgY(userLoc.lat)}"></div>` : ""}
@@ -915,6 +928,7 @@
         <button id="locate" class="loc" aria-label="show my location"></button>
       </div>
       </div>
+      <div class="entries mappick" id="mappick"></div>
       <div class="date-head" data-key="map-below"></div>
       <div class="entries maplist" id="maplist"></div>
     `;
@@ -925,6 +939,43 @@
     return shows.slice().sort((a, b) =>
       neighborhoodRank(a.neighborhood) - neighborhoodRank(b.neighborhood) ||
       b.latitude - a.latitude);
+  }
+
+  // ---- a dot pulls its listing up out of the list ------------------------
+  // Tapping a dot used to leave for the show's own page on See Saw. It brings
+  // the listing here instead: up into the map's own block, its own building
+  // directly under the map and above the street below it, and out of the list
+  // underneath. The page it used to go to is still one tap away — the title
+  // of the listing it pulls up is the link to it.
+  //
+  // Looked up through mapPoints rather than held as an object, so a pick that
+  // is no longer on this map — a different day on the openings map, a reload
+  // with a stale id — is simply no pick at all.
+  function pickedShow() {
+    const id = mapPicked[mapKind];
+    if (!id) return null;
+    const hit = mapPoints.find(p => String(p.show.id) === id);
+    return hit ? hit.show : null;
+  }
+
+  // Not filtered by what the map is showing, unlike the list: panning away
+  // from the dot you just tapped must not take the listing back off you.
+  function renderMapPick() {
+    const host = document.getElementById("mappick");
+    if (!host) return;
+    const show = pickedShow();
+    host.innerHTML = show ? entryHTML(show) : "";
+    applyBookmarkStyles();
+  }
+
+  function pickOnMap(id) {
+    const now = String(id);
+    if (mapPicked[mapKind] === now) return;
+    mapPicked[mapKind] = now;
+    renderMapPick();
+    mapListSig = "";            // the row it used to be has to leave the list
+    updateMapList();
+    measureDoc();               // the page just got taller or shorter
   }
 
   // Everything on screen, listed underneath — nothing else, bookmarked or not.
@@ -942,7 +993,9 @@
 
     const pinned = [];
     const onScreen = [];
+    const picked = mapPicked[mapKind];
     for (const p of mapPoints) {
+      if (picked && String(p.show.id) === picked) continue;   // it is up top now
       const x = p.x * mapScale;
       const y = p.y * mapScale;
       if (x < left || x > right || y < top || y > bottom) continue;
@@ -2547,6 +2600,7 @@
       });
       insertBasemap();
       applyMapScale();
+      renderMapPick();
       const wrap = document.getElementById("mapwrap");
       document.getElementById("zoomIn")?.addEventListener("click", () => zoomBy(1.6));
       document.getElementById("zoomOut")?.addEventListener("click", () => zoomBy(1 / 1.6));
@@ -2582,10 +2636,17 @@
     // delegated so it survives every re-render of the list
     document.getElementById("content").addEventListener("click", (e) => {
       const btn = e.target.closest(".bm");
-      if (!btn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      toggleBookmark(btn.dataset.id);
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBookmark(btn.dataset.id);
+        return;
+      }
+      const dot = e.target.closest(".dot[data-id]");
+      if (dot) {
+        e.preventDefault();
+        pickOnMap(dot.dataset.id);
+      }
     });
 
     try {
