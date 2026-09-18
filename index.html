@@ -206,6 +206,21 @@
 
   .entry .summary { font-style: italic; }
 
+  /* ---- the listing a map has pulled up ----
+     Every line of it steps up one: the title from bold to Arial Black, the
+     gallery and address from regular to bold, the summary from italic to bold
+     italic. Arial Black is a family of its own rather than a weight — asking
+     Arial for 900 gets you Arial Bold again on every desktop, because Arial
+     has no black cut — so it is named, with the weight after it for the
+     phones that have no such face and synthesise from a variable one instead.
+     Nothing else about the row changes: same roof, same size, same bookmark. */
+  .mappick .title {
+    font-family: "Arial Black", "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font-weight: 900;
+  }
+  .mappick .sub { font-weight: bold; }
+  .mappick .summary { font-weight: bold; font-style: italic; }
+
   /* ---- bookmark: a ring on the roof, filled when marked ---- */
   .bm {
     flex: none;
