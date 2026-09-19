@@ -2,6 +2,7 @@ package com.seesawport
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -100,6 +101,25 @@ class MainActivity : ComponentActivity() {
                 override fun shouldInterceptRequest(
                     view: WebView, request: WebResourceRequest
                 ): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
+
+                /**
+                 * Anything that is not this app opens outside it.
+                 *
+                 * On the website a title, a gallery or an address is a link
+                 * with target="_blank" and the browser gives it a tab. A
+                 * WebView has no tabs: it followed the link in place, so
+                 * tapping a show title replaced the whole app with See Saw's
+                 * website and there was no way back to it — no tab to close,
+                 * no back button wired up. The phone's own browser is the tab.
+                 */
+                override fun shouldOverrideUrlLoading(
+                    view: WebView, request: WebResourceRequest
+                ): Boolean {
+                    val url = request.url
+                    if (url.host == DOMAIN) return false          // ours; load it here
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, url)) }
+                    return true
+                }
 
                 // Twice: as soon as there is something on screen, so the
                 // header is never drawn in the wrong place, and again at the
