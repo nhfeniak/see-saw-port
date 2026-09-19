@@ -48,7 +48,10 @@ object Refresh {
 
         val previous = runCatching { JSONObject(file.readText()) }.getOrNull()
         val priorShows = previous?.optJSONArray("shows")
-        val priorEtag = previous?.optString("list_etag", "")?.takeIf { it.isNotEmpty() }
+        // opt(), not optString(): org.json hands back the STRING "null" for a
+        // JSON null, and an If-None-Match of "null" is a header full of
+        // nonsense. Same trap as the handles below, and the same fix.
+        val priorEtag = (previous?.opt("list_etag") as? String)?.takeIf { it.isNotEmpty() }
 
         // A show counts as evaluated if it has a summary KEY AT ALL: an empty
         // string means a previous run read the release and correctly found
@@ -120,9 +123,15 @@ object Refresh {
             JSONObject(File(file.parentFile, "instagram.json").readText())
         }.getOrNull()
 
+        // A null in the handles file means "looked, and this gallery has no
+        // Instagram" — eleven of them do. org.json's optString turns that null
+        // into the four-character string "null", so every one of those
+        // galleries got instagram: "null" and a link to instagram.com/null.
+        // The Node script read the same file with plain property access, where
+        // null is falsy and the key simply comes off. opt() behaves that way.
         for (i in 0 until shows.length()) {
             val s = shows.getJSONObject(i)
-            val h = handles?.optString(s.optString("name"), "")?.takeIf { it.isNotEmpty() }
+            val h = (handles?.opt(s.optString("name")) as? String)?.takeIf { it.isNotEmpty() }
             if (h != null) s.put("instagram", h) else s.remove("instagram")
         }
 
