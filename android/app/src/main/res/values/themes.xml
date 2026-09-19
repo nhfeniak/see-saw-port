@@ -1,0 +1,10 @@
+<resources>
+    <!-- The page paints its own background the instant it loads; this is only
+         what shows for the frame before that. Night, because Openings is
+         where the app opens. -->
+    <style name="Theme.SeeSawPort" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/void_night</item>
+        <item name="android:statusBarColor">@color/void_night</item>
+        <item name="android:navigationBarColor">@color/void_night</item>
+    </style>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <!-- the night scene's void, so the launch frame matches the page -->
+    <color name="void_night">#0C0A0A</color>
+</resources>

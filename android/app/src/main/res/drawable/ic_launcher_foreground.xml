@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The block and the avenue beside it, in the night palette: a roof, the lit
+     pavement down its right side, the carriageway, and one car in the lane.
+     The safe zone of an adaptive icon is the middle 66dp of 108. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- the roof -->
+    <path android:fillColor="#26232B" android:pathData="M30,30h26v48h-26z" />
+    <!-- the pavement, lit -->
+    <path android:fillColor="#655339" android:pathData="M56,30h7v48h-7z" />
+    <!-- the carriageway -->
+    <path android:fillColor="#292119" android:pathData="M63,30h15v48h-15z" />
+    <!-- a car in the lane -->
+    <path android:fillColor="#867156" android:pathData="M69,46h6v14h-6z" />
+</vector>

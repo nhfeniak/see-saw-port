@@ -1,0 +1,11 @@
+# generated
+build/
+app/build/
+.gradle/
+.kotlin/
+
+# machine-specific: the SDK lives somewhere different on every machine
+local.properties
+
+# copied from the site root at build time, never edited here
+app/src/main/assets/
