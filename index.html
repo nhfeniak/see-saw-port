@@ -103,7 +103,7 @@
 
   /* One box across the top for everything, built like a listing's roof —
      no rules, no plates, nothing dividing it. */
-  h1.site, .meta, nav.top, .tabs {
+  nav.top, .tabs {
     background: var(--chrome);
     color: var(--chrome-ink);
     border: none;
@@ -115,15 +115,17 @@
      between two of them is the same 8px. The first and last row carry a
      little more against the outside edge — and which row is last depends on
      whether the page has subtabs, which only the script knows. */
-  h1.site { font-size: 22px; font-weight: bold; padding-top: 10px; }
-
+  /* The nav is the whole header now: no title, no status line. The top of
+     its box runs up behind the status bar, so the bar's own text sits on the
+     roof stock rather than on whatever the street happens to be doing.
+     --safe-top is set by the Android shell; in a browser it is nothing. */
   nav.top {
     display: flex;
     flex-wrap: wrap;
     gap: 2px 14px;
+    padding-top: calc(10px + var(--safe-top, 0px));
+    padding-bottom: 10px;
   }
-
-  nav.top { padding-bottom: 10px; }
   :root[data-subtabs] nav.top { padding-bottom: 4px; }
 
   nav.top a { text-decoration: underline; cursor: pointer; font-weight: bold; }
@@ -138,7 +140,7 @@
   }
 
   .tabs a { text-decoration: underline; cursor: pointer; }
-  .tabs a.active { text-decoration: none; font-weight: bold; }
+  .tabs a.active { text-decoration: none; }
 
   /* ---- a date / neighbourhood subtitle ----
      It gets a roof like any listing, at the head of the island it names, so
@@ -316,8 +318,10 @@
     background: var(--roof);
   }
 
+  /* Two across, three down: a portrait window on a portrait city, and the
+     same shape whatever the screen is, rather than a fraction of its height. */
   .mapwrap {
-    max-height: 70vh;
+    aspect-ratio: 2 / 3;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -429,8 +433,6 @@
 </head>
 <body>
 <div id="sceneclip" aria-hidden="true"><canvas id="scene"></canvas></div>
-<h1 class="site">See Saw Port</h1>
-<div class="meta" id="updated">loading...</div>
 <nav class="top" id="topnav"></nav>
 
 <div id="content">loading...</div>
@@ -456,8 +458,7 @@
   const PLOT_DY = -0.9131;
   let userLoc = null; // {lat, lon} once the browser gives us a fix
   let locationOn = false;
-  let locationTimer = null;
-  const LOCATION_INTERVAL_MS = 20000;
+  let locationTimer = null;      // a watchPosition id, not an interval
 
   // vector basemap artboard: viewBox 0 0 1040 1665.9, corners given as lat/long
   const ARTBOARD_W = 1040;
@@ -507,15 +508,6 @@
     { id: "onview", label: "On View" },
     { id: "onview-map", label: "On View Map", nav: "Map" },
   ];
-
-  function fmtUpdated(iso) {
-    if (!iso) return "no data yet";
-    const d = new Date(iso);
-    return "Updated " + new Intl.DateTimeFormat("en-US", {
-      timeZone: NYC_TZ, month: "short", day: "numeric",
-      hour: "numeric", minute: "2-digit"
-    }).format(d);
-  }
 
   // Bookmarks are per-device: localStorage only, never sent anywhere. A show
   // starred on the laptop is NOT starred on the phone.
@@ -627,23 +619,6 @@
     } catch (e) {
       // storage unavailable — the toggle still works for this visit
     }
-  }
-
-  // GitHub's scheduler will not fire for this repo, so the refresh is manual:
-  // the link opens the workflow's own page, where "Run workflow" starts it.
-  // Data appears here a couple of minutes later, once Pages rebuilds.
-  const REFRESH_URL = "https://github.com/nhfeniak/see-saw-port/actions/workflows/refresh.yml";
-
-  function renderUpdatedLine() {
-    const el = document.getElementById("updated");
-    if (!el) return;
-    el.textContent = fmtUpdated(latestShows ? latestShows.fetched_at : null) + " ";
-    const a = document.createElement("a");
-    a.href = REFRESH_URL;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.textContent = "Refresh";
-    el.appendChild(a);
   }
 
   function dateOnly(iso) {
@@ -1315,13 +1290,26 @@
     );
   }
 
+  // watchPosition, not a fix every twenty seconds: the platform pushes a new
+  // one whenever it has one, which on a phone that is moving is continuous and
+  // on a phone standing still costs nothing. The interval version also had to
+  // wait out its first tick before the dot moved at all.
   function startLocationTimer() {
     stopLocationTimer();
-    locationTimer = setInterval(() => requestFix(false), LOCATION_INTERVAL_MS);
+    if (!navigator.geolocation) return;
+    locationTimer = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!locationOn) return;
+        userLoc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        positionMeDot();
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+    );
   }
 
   function stopLocationTimer() {
-    if (locationTimer) clearInterval(locationTimer);
+    if (locationTimer !== null) navigator.geolocation.clearWatch(locationTimer);
     locationTimer = null;
   }
 
@@ -2765,7 +2753,47 @@
     saveView();
   }
 
+  // ---- moving the bookmarks between two browsers -------------------------
+  // Bookmarks are localStorage, which no two browsers share and nothing on the
+  // phone can read across — Firefox's storage is private to Firefox and the
+  // app's is private to the app. So the only way across is through the person:
+  // ?bookmarks prints them as one line to copy, and takes one back.
+  //
+  // It is a page rather than a button because it is needed once, from a
+  // browser that has no idea the app exists.
+  function bookmarkTransfer() {
+    loadBookmarks();
+    const out = JSON.stringify([...bookmarks]);
+    const el = document.getElementById("content");
+    el.innerHTML = `
+      <div class="empty" style="margin-right:0">
+        <p style="margin:0 0 10px"><b>${bookmarks.size}</b> bookmark${bookmarks.size === 1 ? "" : "s"} here. Copy this, then paste it into the other one.</p>
+        <textarea id="bmout" readonly rows="4"
+          style="width:100%;box-sizing:border-box;font:12px/1.4 monospace"></textarea>
+        <p style="margin:14px 0 6px">Paste a line from the other browser and load it:</p>
+        <textarea id="bmin" rows="4" placeholder="[&quot;52588&quot;, …]"
+          style="width:100%;box-sizing:border-box;font:12px/1.4 monospace"></textarea>
+        <p style="margin:8px 0 0"><button id="bmload" type="button">Load</button>
+          <span id="bmsay" style="margin-left:10px"></span></p>
+      </div>`;
+    document.getElementById("bmout").value = out;
+    const say = document.getElementById("bmsay");
+    document.getElementById("bmload").addEventListener("click", () => {
+      let list;
+      try { list = JSON.parse(document.getElementById("bmin").value); }
+      catch (e) { say.textContent = "that is not a list"; return; }
+      if (!Array.isArray(list)) { say.textContent = "that is not a list"; return; }
+      // Merged, never replaced: whichever browser you run this in keeps what
+      // it already had. Running it both ways leaves the two the same.
+      for (const id of list) if (typeof id === "string" || typeof id === "number") bookmarks.add(String(id));
+      try { localStorage.setItem(BOOKMARK_KEY, JSON.stringify([...bookmarks])); } catch (e) {}
+      say.textContent = bookmarks.size + " now. Go back to the app.";
+      document.getElementById("bmout").value = JSON.stringify([...bookmarks]);
+    });
+  }
+
   async function main() {
+    if (new URLSearchParams(location.search).has("bookmarks")) return bookmarkTransfer();
     document.getElementById("content").innerHTML = "loading...";
     restoreView();
     sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
@@ -2800,7 +2828,6 @@
       return;
     }
 
-    renderUpdatedLine();
     renderContent();
     // start the map fetch now so the first map tab is not waiting on it
     loadBasemap().catch(() => {});

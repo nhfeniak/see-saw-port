@@ -49,5 +49,10 @@ dependencies {
     // WebViewAssetLoader: serves the bundled page over a real https origin
     // instead of file://, so localStorage and fetch behave as they do online.
     implementation("androidx.webkit:webkit:1.15.0")
-    implementation("androidx.activity:activity:1.13.0")
+    // Pinned to what compileSdk 36 will take: androidx.core 1.19 and
+    // activity 1.13 both demand 37, which is not installed and is not worth a
+    // download for two classes.
+    implementation("androidx.activity:activity:1.9.3")
+    // window insets, so the page can leave room for the status bar
+    implementation("androidx.core:core-ktx:1.15.0")
 }

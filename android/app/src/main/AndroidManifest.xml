@@ -5,6 +5,11 @@
          is served out of the APK, so the app opens with no signal at all. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Where you are, on the map. Coarse alone is a few hundred metres, which
+         on a block of galleries is the wrong block. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -15,6 +20,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.SeeSawPort">
             <intent-filter>
