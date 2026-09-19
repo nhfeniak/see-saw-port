@@ -159,6 +159,9 @@
     background: none;
   }
 
+  /* the last one on a page, cut off at the traffic lane */
+  .edge-head { height: var(--edge-h, 58px); }
+
   .head-roof .daymap-link {
     font-size: 14px;
     font-weight: normal;
@@ -478,7 +481,7 @@
   let mapPile = { opening: [], onview: [] };
   const MAP_KINDS = ["opening", "onview"];
   const PILE_KEY = "seesawport.mappile";
-  const PILE_MAX = 5;
+  const BLOCK_MAX = 5;        // the pick and the pile together, not each
   let mapPoints = [];    // what is plotted in the current map view
   let mapKind = null;    // "opening" | "onview"
   let mapListSig = "";   // last rendered row order, to skip redundant repaints
@@ -535,7 +538,7 @@
       for (const k of MAP_KINDS) {
         const head = mapPicked[k];
         out[k] = (head ? [head, ...mapPile[k].filter(x => x !== head)] : mapPile[k])
-                   .slice(0, PILE_MAX);
+                   .slice(0, BLOCK_MAX);
       }
       localStorage.setItem(PILE_KEY, JSON.stringify(out));
     } catch (e) {
@@ -556,7 +559,7 @@
     if (!saved) return;
     for (const k of MAP_KINDS) {
       if (!Array.isArray(saved[k])) continue;
-      mapPile[k] = saved[k].filter(x => typeof x === "string").slice(0, PILE_MAX);
+      mapPile[k] = saved[k].filter(x => typeof x === "string").slice(0, BLOCK_MAX);
     }
   }
 
@@ -985,8 +988,8 @@
       </div>
       </div>
       <div class="entries mappick" id="mappick"></div>
-      <div class="date-head" data-key="map-below"></div>
       <div id="mappile"></div>
+      <div class="date-head" data-key="map-below"></div>
       <div class="entries maplist" id="maplist"></div>
     `;
   }
@@ -1037,21 +1040,19 @@
     return out;
   }
 
-  // Everything this map has pulled up before, most recently clicked first, in
-  // its own block above the list with a street between the two. It is not the
-  // list: the list is the whole of the map's north-south order, and this is a
-  // record of what you have been looking at, which is a different question and
-  // so sits on its own block. It ignores what the map is currently showing —
-  // panning away from something you tapped must not lose it — and unlike the
-  // pick it survives a reload, five deep.
+  // Everything this map has pulled up before, most recently clicked first,
+  // hanging straight off the one that is up now — the map's own block, no
+  // street between them, five buildings counting the pick.
+  //
+  // These rows are a second copy, not a move. The list underneath is the map's
+  // whole north-south order and it stays whole: a gallery you tapped is still
+  // where it always was in it, and also up here. Taking it out of the list
+  // meant the order you navigate by quietly changed every time you tapped.
   function renderMapPile() {
     const host = document.getElementById("mappile");
     if (!host) return;
     const shows = showsFor(mapPile[mapKind]);
-    host.innerHTML = shows.length
-      ? `<div class="entries">${shows.map(entryHTML).join("")}</div>` +
-        `<div class="date-head" data-key="map-pile"></div>`
-      : "";
+    host.innerHTML = shows.length ? shows.map(entryHTML).join("") : "";
     applyBookmarkStyles();
   }
 
@@ -1074,9 +1075,9 @@
     // out of the pile if it was in it, rather than being in two places.
     const pile = mapPile[kind].filter(x => x !== now && x !== going);
     if (going) pile.unshift(going);
-    // Five deep. The sixth thing you looked at is not what the block is for,
-    // and it falls off the bottom of it back into the order the list is in.
-    mapPile[kind] = pile.slice(0, PILE_MAX);
+    // Five in the block, the one up top included — so four behind it. The
+    // sixth thing you looked at is not what the block is for.
+    mapPile[kind] = pile.slice(0, BLOCK_MAX - 1);
     mapPicked[kind] = now;
     savePile();
     renderMapPick();
@@ -1101,11 +1102,7 @@
 
     const pinned = [];
     const onScreen = [];
-    const picked = mapPicked[mapKind];
-    const piled = new Set(mapPile[mapKind]);
     for (const p of mapPoints) {
-      const id = String(p.show.id);
-      if (id === picked || piled.has(id)) continue;   // it is in a block above
       const x = p.x * mapScale;
       const y = p.y * mapScale;
       if (x < left || x > right || y < top || y > bottom) continue;
@@ -1494,6 +1491,11 @@
   }
   fitStreet();
   rootStyle.setProperty("--cross-h", CROSS_H + GAP_EXTRA + "px");
+  // The last street on a page is cropped rather than crossed: pavement,
+  // parking, lane, and then nothing — exactly what the avenue shows at the
+  // right edge, turned clockwise. So it is as deep as the avenue is wide.
+  const EDGE_H = WALK_W + AV_ROAD;
+  rootStyle.setProperty("--edge-h", EDGE_H + GAP_EXTRA + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + GAP_EXTRA / 2 + R((ROAD_W - 26) / 2)) + "px");
   rootStyle.setProperty("--dot-d", DOT_D + "px");
 
@@ -1965,7 +1967,11 @@
       const shift = -(1 - PARALLAX) * (r.top - sceneH / 2);
       const top = r.top + shift + GAP_EXTRA / 2;   // centred in the deeper gap
       const key = el.dataset.key;   // its own, not its words: the gap is empty
+      // A cropped street is an ordinary one that stops at the lane. It is
+      // built and drawn whole and then cut, so its visible half is the same
+      // pavement, the same parked row and the same traffic as any other.
       out.push({ el, key, shift, top, gapTop: r.top, gapBot: r.top + CROSS_H + GAP_EXTRA,
+                 crop: el.classList.contains("edge-head"),
                  st: crossFor(key, S, W),
                  roadTop: top + WALK_W, roadBot: top + WALK_W + ROAD_W, bot: top + CROSS_H });
     }
@@ -2149,9 +2155,12 @@
     p.closePath();
   }
 
+  // Nothing below a cropped street casts anything: the block that would have
+  // thrown this shadow is past the crop, the same way the far side of the
+  // avenue is past the right edge and throws nothing onto it either.
   function blockShade(g, boxes) {
     const p = new Path2D(), bl = R(g.walkX);
-    for (const b of boxes) bandTo(p, b, bl);
+    for (const b of boxes) if (!b.crop) bandTo(p, b, bl);
     return p;
   }
 
@@ -2165,7 +2174,7 @@
     p.rect(-1e4, -1e4, 2e4, 2e4);
     for (const b of boxes) {
       p.rect(0, b.gapTop, bl, Math.max(0, b.top - b.gapTop));
-      bandTo(p, b, bl);
+      if (!b.crop) bandTo(p, b, bl);
     }
     return p;
   }
@@ -2435,6 +2444,16 @@
     // Cross traffic is allowed to run well past it before it wraps, which is
     // what stops a car vanishing whole a length short of the edge.
     cx.fillStyle = S.blank; cx.fillRect(R(g.edge), T, W - R(g.edge), HH);
+    // And the same cut turned clockwise, at the end of the page: the last
+    // street keeps its pavement, its parked row and its lane, and everything
+    // past that — its far kerb, the block beyond it, the rest of the city —
+    // is cut off exactly as the avenue is. Drawn last, over the traffic and
+    // the people, because they are what it cuts.
+    for (const b of boxes) {
+      if (!b.crop) continue;
+      const y = b.top + WALK_W + AV_ROAD;
+      if (y < T + HH) cx.fillRect(0, y, W, T + HH - y);
+    }
     cx.restore();
   }
 
@@ -2719,6 +2738,10 @@
       if (locationOn) startLocationTimer();
       if (wrap) attachPinchHandlers(wrap);
     }
+
+    // Every page ends at a street rather than simply stopping mid-block.
+    content.insertAdjacentHTML("beforeend",
+      `<div class="date-head edge-head" data-key="edge"></div>`);
 
     // the nav is the bottom edge of the header box unless subtabs follow it
     document.documentElement.toggleAttribute("data-subtabs", !!content.querySelector(".tabs"));
