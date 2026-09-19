@@ -96,6 +96,7 @@ object Refresh {
 
             var reused = 0
             var pending = 0
+            val noHandle = HashSet<String>()
             val out = JSONArray()
             for (i in 0 until shows.length()) {
                 val s = shows.getJSONObject(i)
@@ -111,7 +112,18 @@ object Refresh {
             }
 
             val kb = write(context, file, etag, out)
-            return Result(true, "${out.length()} shows, $kb KB — $reused kept, $pending without a summary")
+            // Counted after the write, where the handles have just been merged
+            // in. The harvester looks a gallery up once and never again, so a
+            // gallery without a handle stays without one until someone does it
+            // by hand — this is the only place that says so out loud.
+            for (i in 0 until out.length()) {
+                val s = out.getJSONObject(i)
+                val name = s.optString("name")
+                if (!name.startsWith("\uD83C\uDFAA") && !s.has("instagram")) noHandle.add(name)
+            }
+            val handles = if (noHandle.isEmpty()) "" else
+                ", ${noHandle.size} gallery(s) with no Instagram: ${noHandle.sorted().joinToString(", ")}"
+            return Result(true, "${out.length()} shows, $kb KB — $reused kept, $pending without a summary$handles")
         } finally {
             conn.disconnect()
         }
