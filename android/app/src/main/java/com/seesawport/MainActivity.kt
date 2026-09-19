@@ -12,11 +12,17 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewAssetLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * See Saw Port, as an app that contains the app.
@@ -50,6 +56,9 @@ class MainActivity : ComponentActivity() {
      * the load, and the nav came up sitting on the clock.
      */
     private var safeTopCss = -1
+
+    /** nyc.json's timestamp when the page last read it, to spot a refresh. */
+    private var dataStamp = 0L
 
     /** Held from onGeolocationPermissionsShowPrompt until Android answers. */
     private var pendingGeoOrigin: String? = null
@@ -160,9 +169,22 @@ class MainActivity : ComponentActivity() {
         }
         ViewCompat.requestApplyInsets(web)
 
+        // Back walks where you have been. The page makes a history entry for
+        // every tab and subtab, so this is the whole of it — and when there is
+        // nowhere left to go back to, back does what back does.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (web.canGoBack()) web.goBack() else finish()
+            }
+        })
+
+        // Every three hours, whether the app is open or not.
+        RefreshWorker.schedule(this)
+
         // A route in, for the pages that have no way of being asked for —
         // ?bookmarks is the one that carries marks in from another browser.
         val route = intent?.getStringExtra("route").orEmpty()
+        dataStamp = dataFile().lastModified()
         web.loadUrl("https://$DOMAIN/assets/index.html$route")
     }
 
@@ -181,6 +203,42 @@ class MainActivity : ComponentActivity() {
         ) { got -> Log.i(TAG, "safe-top ${safeTopCss}px -> nav padding-top $got") }
     }
 
+    /**
+     * Opening the app is also a reason to refresh, if what is on disk is old
+     * enough to be worth the request. An hour: a gallery list does not change
+     * faster than that, and the ETag means a wasted check costs one round trip
+     * and no body.
+     */
+    override fun onResume() {
+        super.onResume()
+        val file = dataFile()
+        val age = System.currentTimeMillis() - file.lastModified()
+        if (file.exists() && age < STALE_AFTER) { reloadIfDataChanged(); return }
+
+        lifecycleScope.launch {
+            val note = withContext(Dispatchers.IO) {
+                runCatching { Refresh.run(this@MainActivity).note }.getOrElse { "failed: ${it.message}" }
+            }
+            Log.i(TAG, "refresh on open: $note")
+            reloadIfDataChanged()
+        }
+    }
+
+    /**
+     * The page reads the data once, at load. If a refresh has landed since —
+     * on open or in the background while you were elsewhere — the page is
+     * showing yesterday and has no way of knowing.
+     */
+    private fun reloadIfDataChanged() {
+        val stamp = dataFile().lastModified()
+        if (stamp == dataStamp) return
+        dataStamp = stamp
+        Log.i(TAG, "data changed under the page; reloading")
+        web.reload()
+    }
+
+    private fun dataFile() = File(File(filesDir, "data"), "nyc.json")
+
     private fun hasLocation() =
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
         checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -193,5 +251,6 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val DOMAIN = "appassets.androidplatform.net"
         const val TAG = "SeeSawPort"
+        const val STALE_AFTER = 60L * 60 * 1000      // an hour
     }
 }

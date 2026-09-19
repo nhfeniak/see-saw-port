@@ -2668,6 +2668,40 @@
   }
 
 
+  // ---- where you are, and how you got here -------------------------------
+  // Every change of tab or subtab is a history entry, so the phone's back
+  // gesture walks back through where you have been instead of closing the app
+  // on the first press. What gets pushed is the same three things saveView
+  // keeps, because those three are the whole of where you are.
+  const viewState = () => ({ page: currentPage, nbhd: onViewNeighborhood, day: openingMapDate });
+
+  function applyView(v) {
+    currentPage = v.page;
+    onViewNeighborhood = v.nbhd;
+    openingMapDate = v.day;
+  }
+
+  // The one door. Four things used to change the view and render — the nav, a
+  // day link on a heading, and two rows of subtabs — and each did its own
+  // half-remembered version of the housekeeping.
+  function go(patch) {
+    const wrap = document.getElementById("mapwrap");
+    if (wrap) saveCamera(wrap);
+    applyView({ ...viewState(), ...patch });
+    history.pushState(viewState(), "");
+    renderTopNav();
+    renderContent();
+  }
+
+  addEventListener("popstate", (e) => {
+    if (!e.state) return;
+    const wrap = document.getElementById("mapwrap");
+    if (wrap) saveCamera(wrap);
+    applyView(e.state);
+    renderTopNav();
+    renderContent();
+  });
+
   function renderTopNav() {
     const nav = document.getElementById("topnav");
     nav.innerHTML = PAGES.map(p =>
@@ -2677,11 +2711,7 @@
     nav.querySelectorAll("a").forEach(a => {
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        const prevWrap = document.getElementById("mapwrap");
-        if (prevWrap) saveCamera(prevWrap);
-        currentPage = a.dataset.page;
-        renderTopNav();
-        renderContent();
+        go({ page: a.dataset.page });
       });
     });
   }
@@ -2699,10 +2729,7 @@
       content.querySelectorAll(".daymap-link").forEach(a => {
         a.addEventListener("click", (e) => {
           e.preventDefault();
-          openingMapDate = a.dataset.date;
-          currentPage = "opening-map";
-          renderTopNav();
-          renderContent();
+          go({ page: "opening-map", day: a.dataset.date });
         });
       });
     } else if (currentPage === "onview") {
@@ -2710,8 +2737,7 @@
       content.querySelectorAll(".tabs a[data-nbhd]").forEach(a => {
         a.addEventListener("click", (e) => {
           e.preventDefault();
-          onViewNeighborhood = a.dataset.nbhd || null;
-          renderContent();
+          go({ nbhd: a.dataset.nbhd || null });
         });
       });
     } else if (currentPage === "opening-map" || currentPage === "onview-map") {
@@ -2720,10 +2746,7 @@
       content.querySelectorAll(".tabs a[data-date]").forEach(a => {
         a.addEventListener("click", (e) => {
           e.preventDefault();
-          const prevWrap = document.getElementById("mapwrap");
-          if (prevWrap) saveCamera(prevWrap);
-          openingMapDate = a.dataset.date;
-          renderContent();
+          go({ day: a.dataset.date });
         });
       });
       insertBasemap();
@@ -2799,6 +2822,8 @@
     sceneSetKind(currentPage.startsWith("onview") ? "day" : "night");
     sceneStart();
     renderTopNav();
+    // the entry you land on needs state too, or the first back has nothing
+    history.replaceState(viewState(), "");
     loadBookmarks();
     loadPile();
 
