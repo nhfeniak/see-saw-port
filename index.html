@@ -56,7 +56,11 @@
     font-family: Arial, Helvetica, sans-serif;
     font-size: 14px;
     line-height: 1.4;
-    padding: 0 12px 12px 0;   /* roofs run to the left edge, and to the top */
+    /* Roofs run to the left edge and to the top, and the page ends on a
+       kerb rather than on a margin: the last street is the breathing room
+       at the bottom, and 12px of padding under it only held it off the
+       edge it is supposed to reach. */
+    padding: 0 12px 0 0;
     max-width: 640px;
   }
 
@@ -159,7 +163,7 @@
     background: none;
   }
 
-  /* the last one on a page, cut off at the traffic lane */
+  /* the last one on a page: a whole street, and then the page ends */
   .edge-head { height: var(--edge-h, 58px); }
 
   .head-roof .daymap-link {
@@ -1490,12 +1494,24 @@
     rootStyle.setProperty("--gutter", GUTTER + "px");
   }
   fitStreet();
+
+  // The last street on a page runs whole and the page stops at its far kerb,
+  // with nothing after it. How tall its spacer has to be for that kerb to land
+  // exactly on the bottom of the document is a parallax question: scrolled all
+  // the way down, the street has ridden up by (1 - PARALLAX) of its distance
+  // from the middle of the screen, so the spacer has to be short by that much.
+  //
+  //   bot = (H - h) - (1-P)((H - h) - H/2) + GAP_EXTRA/2 + CROSS_H  =  H
+  //   h   = (CROSS_H + GAP_EXTRA/2 - (1-P)H/2) / P
+  //
+  // Which is why it depends on the height of the screen and is set again
+  // whenever that changes.
+  function fitEdge() {
+    const whole = CROSS_H + GAP_EXTRA / 2;
+    const h = PARALLAX ? (whole - (1 - PARALLAX) * sceneH / 2) / PARALLAX : whole;
+    rootStyle.setProperty("--edge-h", Math.max(1, Math.round(h)) + "px");
+  }
   rootStyle.setProperty("--cross-h", CROSS_H + GAP_EXTRA + "px");
-  // The last street on a page is cropped rather than crossed: pavement,
-  // parking, lane, and then nothing — exactly what the avenue shows at the
-  // right edge, turned clockwise. So it is as deep as the avenue is wide.
-  const EDGE_H = WALK_W + AV_ROAD;
-  rootStyle.setProperty("--edge-h", EDGE_H + GAP_EXTRA + "px");
   rootStyle.setProperty("--cross-pad", (WALK_W + GAP_EXTRA / 2 + R((ROAD_W - 26) / 2)) + "px");
   rootStyle.setProperty("--dot-d", DOT_D + "px");
 
@@ -1967,9 +1983,9 @@
       const shift = -(1 - PARALLAX) * (r.top - sceneH / 2);
       const top = r.top + shift + GAP_EXTRA / 2;   // centred in the deeper gap
       const key = el.dataset.key;   // its own, not its words: the gap is empty
-      // A cropped street is an ordinary one that stops at the lane. It is
-      // built and drawn whole and then cut, so its visible half is the same
-      // pavement, the same parked row and the same traffic as any other.
+      // The last street is an ordinary one that the page stops behind. It is
+      // built and drawn exactly like every other, shadow included; all that
+      // is different is that nothing is laid past its far kerb.
       out.push({ el, key, shift, top, gapTop: r.top, gapBot: r.top + CROSS_H + GAP_EXTRA,
                  crop: el.classList.contains("edge-head"),
                  st: crossFor(key, S, W),
@@ -2155,12 +2171,9 @@
     p.closePath();
   }
 
-  // Nothing below a cropped street casts anything: the block that would have
-  // thrown this shadow is past the crop, the same way the far side of the
-  // avenue is past the right edge and throws nothing onto it either.
   function blockShade(g, boxes) {
     const p = new Path2D(), bl = R(g.walkX);
-    for (const b of boxes) if (!b.crop) bandTo(p, b, bl);
+    for (const b of boxes) bandTo(p, b, bl);
     return p;
   }
 
@@ -2174,7 +2187,7 @@
     p.rect(-1e4, -1e4, 2e4, 2e4);
     for (const b of boxes) {
       p.rect(0, b.gapTop, bl, Math.max(0, b.top - b.gapTop));
-      if (!b.crop) bandTo(p, b, bl);
+      bandTo(p, b, bl);
     }
     return p;
   }
@@ -2444,15 +2457,12 @@
     // Cross traffic is allowed to run well past it before it wraps, which is
     // what stops a car vanishing whole a length short of the edge.
     cx.fillStyle = S.blank; cx.fillRect(R(g.edge), T, W - R(g.edge), HH);
-    // And the same cut turned clockwise, at the end of the page: the last
-    // street keeps its pavement, its parked row and its lane, and everything
-    // past that — its far kerb, the block beyond it, the rest of the city —
-    // is cut off exactly as the avenue is. Drawn last, over the traffic and
-    // the people, because they are what it cuts.
+    // And the same cut turned clockwise, at the end of the page. The last
+    // street is whole — both pavements, both parked rows, the lane between
+    // them — and the city simply stops at its far kerb. Drawn last, over the
+    // traffic and the people, because they are what it cuts.
     for (const b of boxes) {
-      if (!b.crop) continue;
-      const y = b.top + WALK_W + AV_ROAD;
-      if (y < T + HH) cx.fillRect(0, y, W, T + HH - y);
+      if (b.crop && b.bot < T + HH) cx.fillRect(0, b.bot, W, T + HH - b.bot);
     }
     cx.restore();
   }
@@ -2637,7 +2647,7 @@
   function sceneStart() {
     cv = document.getElementById("scene");
     cx = cv.getContext("2d");
-    fitStreet(); sizeCanvas(); measureDoc(); populate();
+    fitStreet(); fitEdge(); sizeCanvas(); measureDoc(); populate();
     // A phone changes the viewport height whenever the address bar hides or
     // shows, which is on every change of scroll direction. Rebuilding the
     // street there restarted every car and every walker, so only a genuine
@@ -2646,6 +2656,7 @@
     addEventListener("resize", () => {
       const rotated = Math.abs(innerWidth - lastW) > 2;
       if (rotated) { lastW = innerWidth; sceneH = innerHeight; fitStreet(); }   // a new scene
+      fitEdge();                               // its height follows the screen's
       sizeCanvas(); measureDoc();
       if (rotated) populate();
     }, { passive: true });
