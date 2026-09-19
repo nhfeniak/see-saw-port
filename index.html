@@ -736,17 +736,27 @@
   // the controls sit inside the frame, so they inherit these from it
   const mapRoofStyle = (sk) => `${roofStyle(sk)};--map-btn:${sk.roof};--map-btnink:${sk.ink}`;
 
+  // See Saw's own marker: a fair is a tent in front of the venue's name.
+  const isFair = (show) => (show.name || "").startsWith("\u{1F3AA}");
+
   function entryHTML(show) {
     const titleText = show.title || show.headline || show.name;
     const combinedTitle = show.artist ? `${show.artist} – ${titleText}` : titleText;
     const dl = directionsLink(show);
     const addr = addressOnly(show);
     const galleryName = escapeHTML(show.name);
-    // the gallery name links to its Instagram where we have one, since that is
-    // where galleries actually post; otherwise to the website from the feed
-    const galleryHref = show.instagram
-      ? `https://www.instagram.com/${show.instagram}/`
-      : (show.url || "");
+    // The gallery name links to its Instagram where we have one, since that
+    // is where galleries actually post; otherwise to the website from the
+    // feed.
+    //
+    // A fair is the exception. See Saw marks one with a tent in the name, and
+    // what stands there is the venue — Sotheby's, the Javits Center, MoMA PS1
+    // — while the thing you want is this edition of the fair. Its own site
+    // says when it opens and what is in it; an Instagram feed is the fair's
+    // whole history, most of it last year's.
+    const galleryHref = isFair(show)
+      ? (show.url || "")
+      : (show.instagram ? `https://www.instagram.com/${show.instagram}/` : (show.url || ""));
     const galleryLinked = galleryHref
       ? `<a class="addr-link" href="${escapeHTML(galleryHref)}" target="_blank" rel="noopener">${galleryName}</a>`
       : galleryName;
